@@ -1,0 +1,10 @@
+{
+    "C_Cpp.default.compilerPath": "/usr/bin/gcc",
+    "C_Cpp.default.intelliSenseMode": "linux-gcc-x64",
+    "files.exclude": {
+        "**/*.o": true,
+        "**/*.exe": true,
+        "**/*.swp": true
+    },
+    "editor.formatOnSave": true
+}

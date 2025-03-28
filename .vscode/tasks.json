@@ -1,0 +1,31 @@
+//Presiona Ctrl+Shift+B y selecciona la tarea para compilar cada componente.
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Compilar FIFO",
+            "type": "shell",
+            "command": "gcc servidores/fifo_server/main.c common.c -o servidores/fifo_server/fifo_server",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Compilar FORK",
+            "type": "shell",
+            "command": "gcc servidores/fork_server/main.c common.c -o servidores/fork_server/fork_server -lpthread",
+            "group": "build"
+        },
+        {
+            "label": "Compilar THREAD",
+            "type": "shell",
+            "command": "gcc servidores/thread_server/main.c common.c -o servidores/thread_server/thread_server -lpthread",
+            "group": "build"
+        },
+        {
+            "label": "Compilar Cliente",
+            "type": "shell",
+            "command": "gcc cliente/main.c common.c -o cliente/cliente -lpthread",
+            "group": "build"
+        }
+    ]
+}
