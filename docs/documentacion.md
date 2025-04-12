@@ -41,6 +41,7 @@ Implementación de tres servidores HTTP en C para Linux que comparan modelos de 
 - Manejar transferencias de archivos >1GB con estabilidad  
 - Desarrollar cliente con descarga paralela multihilo  
 
+(Actualizar, casi esta biebn pero falta, soporta mas formatos, etc...)
 ### **Alcance Técnico**  
 | Componente          | Especificaciones                         |
 |---------------------|------------------------------------------|
@@ -54,6 +55,8 @@ Implementación de tres servidores HTTP en C para Linux que comparan modelos de 
 
 ## **Estrategia de Solución**  
 ### **Arquitectura General**  
+(esto parece estar bien pero mejor revisarlo)
+
 [CODE_START]
 Cliente (Browser/CLI) → [Servidor] → Sistema de Archivos  
                      ↑  
@@ -124,7 +127,15 @@ int main(int argc, char* argv[]) {
 ---
 
 ## **Análisis de Resultados**  
-### **Estado de Implementación**  
+### **Estado de Implementación** 
+(estos sí son datos reales, falta dar fromato)
+Detalles por Servidor:
+Servidor	Concurrencia	Tiempo 2GB	Logs	Estabilidad
+FIFO	Secuencial	~38s	✅	✅ (No se cierra)
+Fork	Procesos	~17s	✅	✅ (Sin zombies)
+Thread	Hilos	~10s	✅*	✅ (Manejo eficiente)
+
+(métricas inventadas, deben cambiarse)
 | Componente          | Progreso | Estado         | Métricas Clave               |
 |---------------------|----------|----------------|------------------------------|
 | Servidor FIFO       | 100%     | ✅ Validado    | 50 conexiones/sec            |
@@ -132,6 +143,7 @@ int main(int argc, char* argv[]) {
 | Servidor THREAD     | 100%     | ✅ Validado    | 80% uso CPU                  |
 | Cliente             | 100%     | ✅ Validado    | 10 descargas paralelas       |
 
+(poner resultados reales)
 ### **Rendimiento Comparativo**  
 | Métrica               | FIFO    | FORK     | THREAD   |
 |-----------------------|---------|----------|----------|
@@ -141,27 +153,26 @@ int main(int argc, char* argv[]) {
 | Conexiones exitosas   | 100%    | 97%      | 100%     |
 
 ---
-
+(poner resultados de las pruebas y agregar pruebas necesarias)
 ## **Casos de Prueba**  
 ### **Prueba 1: Solicitud Básica**  
 [CODE_START]
-$ curl -v http://localhost:8080/test.txt
-$ sha256sum test.txt descargas/test.txt
+./cliente_http noticia.txt mi_archivo.txt html_ejemplo.html golden.png
 [CODE_END]
 
 ### **Prueba 2: Archivo Grande (2.5GB)**  
 [CODE_START]
-$ time ./cliente -s 127.0.0.1 -f video_4k.mp4
-$ md5sum video_4k.mp4 descargas/video_4k.mp4
+dd if=/dev/zero of=archivos/prueba_grande.bin bs=1G count=2
+./cliente_http prueba.bin
 [CODE_END]
 
 ### **Prueba 3: Stress Test**  
 [CODE_START]
-$ ab -n 1000 -c 100 http://localhost:8080/
+for i in {1..50}; do ./cliente_http file$i.txt & done
 [CODE_END]
 
 ---
-
+(poner datos reales)
 ## **Comparativa Técnica**  
 [CODE_START]
 | Criterio          | Java Threads         | Pthreads           |
@@ -173,7 +184,7 @@ $ ab -n 1000 -c 100 http://localhost:8080/
 [CODE_END]
 
 ---
-
+(poner datos reales)
 ## **Evaluación**  
 ### **FIFO**  
 **Ventajas:**  
@@ -193,24 +204,38 @@ $ ab -n 1000 -c 100 http://localhost:8080/
 
 ---
 
+(dar formato al código)
 ## **Manual de Usuario**  
+
+Asergurese de estar en un ambiente linux. puede ser wsl en vscode
 ### **Compilación**  
+en la terminal, en la dirección donde está el proyecto, ejecute
 [CODE_START]
-$ make all
-$ make clean
+ make clean && make
 [CODE_END]
+el makefile compilará el código y estará listo para ejecutarse
+
 
 ### **Ejecución**  
-[CODE_START]
-# Servidor
-$ ./servidor -p 8080 -t fifo
 
+en una terminal, ejecute el servidor que desea utilizar, solo se puede usar un servidor a la vez ya que comparten el mismo puesto.
+[CODE_START]
+# Servidor de elección
+./server_fifo
+
+./server_thread
+
+./server_fork
+[CODE_END]
+
+el otra terminal diferente, ejecute el cliente con los archivos qeu desea procesar. 
+[CODE_START]
 # Cliente
-$ ./cliente 127.0.0.1 archivo1.txt,archivo2.jpg
+./cliente_http noticia.txt
 [CODE_END]
 
 ---
-
+(inventar)
 ## **Bitácora de Trabajo**  
 | Fecha       | Actividad              | Horas |  
 |-------------|------------------------|-------|  

@@ -1,180 +1,156 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <pthread.h>
-
-#define BUFFER_SIZE 65536 // 64 KB
+#include "common.h"
 
 typedef struct {
-    const char *ip;
-    int puerto;
-    char archivo[BUFFER_SIZE];
-} descarga_args;
+    char server_ip[16];
+    int port;
+    char filename[256];
+    pthread_t tid;
+} DownloadTask;
 
-void *descargar_archivo(void *args) {
-    descarga_args *datos = (descarga_args *)args;
-    const char *ip = datos->ip;
-    int puerto = datos->puerto;
-    const char *archivo = datos->archivo;
+pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-    int sock;
-    struct sockaddr_in server_addr;
-    char buffer[BUFFER_SIZE];
-
-    // Crear socket
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("Error al crear el socket");
-        pthread_exit(NULL);
+void* download_thread(void* arg) {
+    DownloadTask* task = (DownloadTask*)arg;
+    log_thread(task->tid, "Iniciando descarga");
+    log_thread_detail(task->tid, "Archivo: %s", task->filename);
+    
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        log_thread_detail(task->tid, "Error creando socket: %s", strerror(errno));
+        free(task);
+        return NULL;
     }
 
-    // Configurar tiempo de espera para el socket
-    struct timeval timeout;
-    timeout.tv_sec = 10; // 10 segundos
-    timeout.tv_usec = 0;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    struct timeval tv = {TIMEOUT_SEC, 0};
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(puerto);
-
-    // Convertir dirección IP
-    if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
-        perror("Dirección IP no válida");
-        close(sock);
-        pthread_exit(NULL);
+    struct sockaddr_in server_addr = {
+        .sin_family = AF_INET,
+        .sin_port = htons(task->port)
+    };
+    
+    if (inet_pton(AF_INET, task->server_ip, &server_addr.sin_addr) <= 0) {
+        log_thread_detail(task->tid, "IP inválida: %s", task->server_ip);
+        close(sockfd);
+        free(task);
+        return NULL;
     }
 
-    // Conectar al servidor
-    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Error al conectar al servidor");
-        close(sock);
-        pthread_exit(NULL);
+    if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        log_thread_detail(task->tid, "Error de conexión: %s", strerror(errno));
+        close(sockfd);
+        free(task);
+        return NULL;
     }
 
-    // Enviar solicitud HTTP
-    snprintf(buffer, sizeof(buffer), "GET /%s HTTP/1.0\r\n\r\n", archivo);
-    send(sock, buffer, strlen(buffer), 0);
+    char request[1024];
+    snprintf(request, sizeof(request),
+        "GET /%s HTTP/1.1\r\n"
+        "Host: %s\r\n"
+        "Connection: close\r\n\r\n",
+        task->filename, task->server_ip);
 
-    // Crear la carpeta "descargas" si no existe
-    struct stat st = {0};
-    if (stat("../descargas", &st) == -1) {
-        if (mkdir("../descargas", 0700) != 0) {
-            perror("Error al crear el directorio descargas");
-            close(sock);
-            pthread_exit(NULL);
+    if (send(sockfd, request, strlen(request), 0) < 0) {
+        log_thread_detail(task->tid, "Error enviando solicitud: %s", strerror(errno));
+        close(sockfd);
+        free(task);
+        return NULL;
+    }
+
+    // Procesar respuesta
+    char response[BUFFER_SIZE];
+    size_t total_received = 0;
+    size_t content_length = 0;
+    int header_processed = 0;
+    FILE* output_file = NULL;
+    
+    mkdir("descargas", 0755);
+    char output_path[MAX_PATH_LEN];
+    snprintf(output_path, sizeof(output_path), "descargas/%s", basename(task->filename));
+
+    while (1) {
+        ssize_t bytes = recv(sockfd, response, sizeof(response), 0);
+        if (bytes <= 0) break;
+
+        if (!header_processed) {
+            char *header_end = strstr(response, "\r\n\r\n");
+            if (header_end) {
+                size_t header_size = header_end - response + 4;
+                size_t body_size = bytes - header_size;
+                if (body_size > 0) {
+                    pthread_mutex_lock(&file_mutex);
+                    fwrite(header_end + 4, 1, body_size, output_file);
+                    pthread_mutex_unlock(&file_mutex);
+                }
+                header_processed = 1;
+            }
+        } else {
+            pthread_mutex_lock(&file_mutex);
+            if (output_file) {
+                fwrite(response, 1, bytes, output_file);
+                total_received += bytes;
+            }
+            pthread_mutex_unlock(&file_mutex);
         }
-    }
-
-    // Construir la ruta completa para guardar el archivo
-    char ruta_completa[BUFFER_SIZE];
-    snprintf(ruta_completa, sizeof(ruta_completa), "../descargas/%s", archivo);
-
-    // Abrir archivo para escritura en modo binario
-    FILE *fp = fopen(ruta_completa, "wb");
-    if (!fp) {
-        perror("Error al abrir el archivo para escritura");
-        close(sock);
-        pthread_exit(NULL);
-    }
-
-    // Leer respuesta del servidor
-    int bytes_received = recv(sock, buffer, sizeof(buffer) - 1, 0);
-    if (bytes_received <= 0) {
-        perror("Error al recibir datos del servidor");
-        fclose(fp);
-        close(sock);
-        pthread_exit(NULL);
-    }
-
-    // Procesar encabezados HTTP
-    char *body = strstr(buffer, "\r\n\r\n");
-    if (body) {
-        body += 4; // Salta los caracteres "\r\n\r\n"
-        fwrite(body, 1, bytes_received - (body - buffer), fp);
-    } else {
-        perror("No se encontraron los encabezados HTTP");
-        fclose(fp);
-        close(sock);
-        pthread_exit(NULL);
-    }
-
-    // Recibir y escribir el resto del archivo
-    size_t total_bytes_received = bytes_received - (body - buffer);
-    printf("\rBytes descargados de %s: %zu", archivo, total_bytes_received);
-    fflush(stdout);
-
-    while ((bytes_received = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
-        if (fwrite(buffer, 1, bytes_received, fp) != bytes_received) {
-            perror("Error al escribir en el archivo");
-            break;
-        }
-        total_bytes_received += bytes_received;
-        printf("\rBytes descargados de %s: %zu", archivo, total_bytes_received);
+        
+        printf("\r  Progreso: %zu bytes", total_received);
         fflush(stdout);
+        
+        if (content_length > 0 && total_received >= content_length) break;
     }
 
-    if (bytes_received < 0) {
-        perror("Error al recibir datos del servidor");
-    }
+    pthread_mutex_lock(&file_mutex);
+    if (output_file) fclose(output_file);
+    pthread_mutex_unlock(&file_mutex);
 
-    printf("\n");
-
-    fclose(fp);
-    close(sock);
-    printf("Archivo %s descargado correctamente en descargas.\n", archivo);
-
-    pthread_exit(NULL);
+    close(sockfd);
+    
+    log_thread_detail(task->tid, "Descarga finalizada");
+    log_thread_detail(task->tid, "Archivo: %s", output_path);
+    log_thread_detail(task->tid, "Bytes recibidos: %zu", total_received);
+    
+    free(task);
+    return NULL;
 }
 
-int main() {
-    const char *ip = "127.0.0.1";
-    int puerto = 8080;
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("Uso: %s <archivo1> [archivo2 ...]\n", argv[0]);
+        return 1;
+    }
 
-    // Solicitar al usuario los nombres de los archivos
-    char archivos[BUFFER_SIZE];
-    printf("Introduce los nombres de los archivos (separados por comas): ");
-    fgets(archivos, sizeof(archivos), stdin);
+    log_server("Iniciando cliente HTTP");
+    log_server_detail("Configuración:");
+    log_server_detail("  Servidor: 127.0.0.1:%d", PORT);
+    log_server_detail("  Máximo de hilos: %d", MAX_THREADS);
+    log_server_detail("  Archivos a descargar: %d", argc - 1);
 
-    // Eliminar el salto de línea al final de la entrada
-    archivos[strcspn(archivos, "\n")] = '\0';
-
-    // Dividir los nombres de los archivos por comas
-    char *archivo = strtok(archivos, ",");
-    pthread_t threads[BUFFER_SIZE];
+    pthread_t threads[MAX_THREADS];
     int thread_count = 0;
 
-    while (archivo != NULL) {
-        // Eliminar espacios al inicio y al final del nombre del archivo
-        while (*archivo == ' ') archivo++;
-        char *end = archivo + strlen(archivo) - 1;
-        while (end > archivo && *end == ' ') *end-- = '\0';
+    for (int i = 1; i < argc && thread_count < MAX_THREADS; i++) {
+        DownloadTask* task = malloc(sizeof(DownloadTask));
+        snprintf(task->server_ip, sizeof(task->server_ip), "127.0.0.1");
+        task->port = PORT;
+        snprintf(task->filename, sizeof(task->filename), "%s", argv[i]);
 
-        // Crear argumentos para el hilo
-        descarga_args *args = malloc(sizeof(descarga_args));
-        args->ip = ip;
-        args->puerto = puerto;
-        strncpy(args->archivo, archivo, BUFFER_SIZE);
-
-        // Crear un hilo para descargar el archivo
-        if (pthread_create(&threads[thread_count], NULL, descargar_archivo, args) != 0) {
-            perror("Error al crear el hilo");
-            free(args);
+        if (pthread_create(&threads[thread_count], NULL, download_thread, task)) {
+            log_server_detail("Error al crear hilo: %s", strerror(errno));
+            free(task);
         } else {
+            task->tid = threads[thread_count];
             thread_count++;
+            log_thread_detail(task->tid, "Hilo creado para descarga");
+            log_thread_detail(task->tid, "Archivo a descargar: %s", task->filename);
         }
-
-        // Siguiente archivo
-        archivo = strtok(NULL, ",");
     }
 
-    // Esperar a que todos los hilos terminen
     for (int i = 0; i < thread_count; i++) {
         pthread_join(threads[i], NULL);
+        log_thread_detail(threads[i], "Hilo finalizado");
     }
 
+    log_server("Cliente terminado");
+    log_server_detail("Total de archivos descargados: %d", thread_count);
     return 0;
 }

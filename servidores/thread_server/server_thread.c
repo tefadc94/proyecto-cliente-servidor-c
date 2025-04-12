@@ -1,146 +1,159 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <pthread.h> // Para manejar hilos
-#include <netinet/in.h> // Para estructuras de red como sockaddr_in
+#include "common.h"
 
-#define BUFFER_SIZE 65536 // 64 KB
-#define PORT 8080 // Puerto en el que escuchará el servidor
+typedef struct {
+    int client_fd;
+    struct sockaddr_in client_addr;
+    pthread_t tid;
+} ThreadData;
 
-void *handle_client(void *arg) {
-    int client_fd = *((int*)arg);
-    free(arg);
+void* client_thread(void* arg) {
+    ThreadData* data = (ThreadData*)arg;
+    char client_ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(data->client_addr.sin_addr), client_ip, INET_ADDRSTRLEN);
+    
+    log_thread(data->tid, "Nueva conexión aceptada");
+    log_thread_detail(data->tid, "Cliente: %s:%d", 
+                     client_ip, ntohs(data->client_addr.sin_port));
 
     char buffer[BUFFER_SIZE];
-    char archivo[256];
+    int bytes = recv(data->client_fd, buffer, sizeof(buffer) - 1, 0);
+    if (bytes <= 0) {
+        log_thread_detail(data->tid, "Error al recibir datos: %s", 
+                         bytes == 0 ? "Conexión cerrada" : strerror(errno));
+        close(data->client_fd);
+        free(data);
+        release_thread_slot();
+        return NULL;
+    }
+    buffer[bytes] = '\0';
 
-    // Leer solicitud del cliente
-    int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-    if (bytes_received <= 0) {
-        perror("[ERROR] Error al recibir datos del cliente");
-        close(client_fd);
+    log_thread_detail(data->tid, "Solicitud recibida (%d bytes)", bytes);
+    log_thread_detail(data->tid, "Contenido: %.*s", 
+                     bytes > 200 ? 200 : bytes, buffer);
+
+    char method[16], path[256], protocol[16];
+    if (sscanf(buffer, "%15s /%255s %15s", method, path, protocol) != 3) {
+        log_thread_detail(data->tid, "Solicitud mal formada");
+        enviar_error(data->client_fd, 400, "Solicitud mal formada");
+        log_request(client_ip, "BAD REQUEST", 400);
+        close(data->client_fd);
+        free(data);
+        release_thread_slot();
         return NULL;
     }
 
-    buffer[bytes_received] = '\0';
+    log_thread_detail(data->tid, "Solicitud parseada: %s %s %s", 
+                     method, path, protocol);
 
-    // Procesar solicitud HTTP
-    if (sscanf(buffer, "GET /%255s", archivo) != 1) {
-        const char *msg = "HTTP/1.0 400 Bad Request\r\n\r\nSolicitud malformada";
-        send(client_fd, msg, strlen(msg), 0);
-        close(client_fd);
+    if (strcmp(method, "GET") != 0) {
+        log_thread_detail(data->tid, "Método no permitido: %s", method);
+        enviar_error(data->client_fd, 405, "Método no permitido");
+        log_request(client_ip, method, 405);
+        close(data->client_fd);
+        free(data);
+        release_thread_slot();
         return NULL;
     }
 
-    // Construir la ruta del archivo
-    char filepath[512];
-    snprintf(filepath, sizeof(filepath), "../../archivos/%s", archivo);
-
-    FILE *fp = fopen(filepath, "rb");
-    if (!fp) {
-        perror("[ERROR] No se pudo abrir el archivo solicitado");
-        const char *msg = "HTTP/1.0 404 Not Found\r\n\r\nArchivo no encontrado";
-        send(client_fd, msg, strlen(msg), 0);
-        close(client_fd);
+    if (!validar_nombre_archivo(path)) {
+        log_thread_detail(data->tid, "Nombre de archivo inválido: %s", path);
+        enviar_error(data->client_fd, 403, "Nombre de archivo inválido");
+        log_request(client_ip, path, 403);
+        close(data->client_fd);
+        free(data);
+        release_thread_slot();
         return NULL;
     }
 
-    // Determinar el tipo de contenido
-    char content_type[64];
-    if (strstr(archivo, ".html")) {
-        strcpy(content_type, "text/html");
-    } else if (strstr(archivo, ".txt")) {
-        strcpy(content_type, "text/plain");
-    } else if (strstr(archivo, ".jpg")) {
-        strcpy(content_type, "image/jpeg");
-    } else if (strstr(archivo, ".png")) {
-        strcpy(content_type, "image/png");
+    char full_path[MAX_PATH_LEN];
+    snprintf(full_path, sizeof(full_path), "%s/%s", FILES_DIR, path);
+    log_thread_detail(data->tid, "Buscando archivo: %s", full_path);
+
+    if (access(full_path, F_OK) == -1) {
+        log_thread_detail(data->tid, "Archivo no encontrado");
+        enviar_error(data->client_fd, 404, "Archivo no encontrado");
+        log_request(client_ip, path, 404);
     } else {
-        strcpy(content_type, "application/octet-stream");
+        FileInfo info = get_file_info(full_path);
+        log_thread_detail(data->tid, "Archivo encontrado - Tamaño: %zu bytes, Tipo: %s", 
+                         info.size, info.content_type);
+        
+        enviar_archivo(data->client_fd, full_path);
+        log_request(client_ip, path, 200);
+        log_thread_detail(data->tid, "Archivo enviado con éxito");
     }
 
-    // Enviar encabezado HTTP
-    char header[BUFFER_SIZE];
-    snprintf(header, sizeof(header), "HTTP/1.0 200 OK\r\nContent-Type: %s\r\n\r\n", content_type);
-    if (send(client_fd, header, strlen(header), 0) == -1) {
-        perror("[ERROR] Error al enviar el encabezado HTTP");
-        fclose(fp);
-        close(client_fd);
-        return NULL;
-    }
-
-    // Enviar el contenido del archivo
-    int n;
-    while ((n = fread(buffer, 1, BUFFER_SIZE, fp)) > 0) {
-        if (send(client_fd, buffer, n, 0) == -1) {
-            perror("[ERROR] Error al enviar el contenido del archivo");
-            break;
-        }
-    }
-
-    fclose(fp);
-    close(client_fd);
-    printf("[FINALIZADO] Archivo enviado correctamente.\n");
+    close(data->client_fd);
+    free(data);
+    release_thread_slot();
+    log_thread_detail(data->tid, "Conexión cerrada");
     return NULL;
 }
 
 int main() {
-    int server_fd, client_fd;
-    struct sockaddr_in server_addr, client_addr;
-    socklen_t client_len = sizeof(client_addr);
+    init_thread_limit();
+    log_server("Iniciando servidor THREAD");
+    log_server_detail("Configuración: Puerto=%d, Hilos máx=%d, Directorio=%s", 
+                     PORT, MAX_THREADS, FILES_DIR);
 
-    // Crear socket
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        perror("[ERROR] No se pudo crear el socket");
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        log_server_detail("Error al crear socket: %s", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
-    // Configurar dirección del servidor
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(PORT);
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    // Enlazar socket
-    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
-        perror("[ERROR] Error al enlazar el socket");
+    struct sockaddr_in server_addr = {
+        .sin_family = AF_INET,
+        .sin_addr.s_addr = INADDR_ANY,
+        .sin_port = htons(PORT)
+    };
+
+    if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        log_server_detail("Error al vincular socket: %s", strerror(errno));
         close(server_fd);
         exit(EXIT_FAILURE);
     }
 
-    // Escuchar conexiones
-    if (listen(server_fd, 10) == -1) {
-        perror("[ERROR] Error al escuchar en el socket");
+    if (listen(server_fd, MAX_CONNECTIONS) < 0) {
+        log_server_detail("Error al escuchar conexiones: %s", strerror(errno));
         close(server_fd);
         exit(EXIT_FAILURE);
     }
 
-    printf("[INICIO] Servidor escuchando en el puerto %d\n", PORT);
+    log_server("Servidor listo. Esperando conexiones...");
+    log_server_detail("Socket: %d, Dirección: 0.0.0.0:%d", server_fd, PORT);
 
     while (1) {
-        // Aceptar conexión de cliente
-        client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
-        if (client_fd == -1) {
-            perror("[ERROR] Error al aceptar conexión");
+        struct sockaddr_in client_addr;
+        socklen_t client_len = sizeof(client_addr);
+        
+        log_server("Esperando nueva conexión...");
+        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
+        if (client_fd < 0) {
+            log_server_detail("Error al aceptar conexión: %s", strerror(errno));
             continue;
         }
 
-        printf("[CONEXIÓN] Cliente conectado\n");
+        wait_thread_slot();
+        ThreadData* data = malloc(sizeof(ThreadData));
+        data->client_fd = client_fd;
+        data->client_addr = client_addr;
 
-        // Crear un hilo para manejar al cliente
-        pthread_t thread_id;
-        int *client_fd_ptr = malloc(sizeof(int));
-        *client_fd_ptr = client_fd;
-        if (pthread_create(&thread_id, NULL, handle_client, client_fd_ptr) != 0) {
-            perror("[ERROR] No se pudo crear el hilo");
-            free(client_fd_ptr); // Libera memoria si no se puede crear el hilo
+        pthread_t tid;
+        if (pthread_create(&tid, NULL, client_thread, data) != 0) {
+            log_server_detail("Error al crear hilo: %s", strerror(errno));
+            free(data);
             close(client_fd);
+            release_thread_slot();
+            continue;
         }
 
-        // Separar el hilo para que se limpie automáticamente al terminar
-        pthread_detach(thread_id);
+        data->tid = tid;
+        pthread_detach(tid);
+        log_thread_detail(tid, "Hilo creado para atender conexión");
     }
 
     close(server_fd);
