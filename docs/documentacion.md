@@ -9,10 +9,10 @@
 
 **Integrantes:**  
 Estefanía Delgado Castillo  
-Mariana [Apellido]  
+Mariana Fernández Martínez
 Diana [Apellido]  
 
-**Fecha de Entrega:** 13 de abril de 2025  
+**Fecha de Entrega:** 15 de abril de 2025  
 **Profesora:** Ing. Erika Marín Schumann  
 
 </div>
