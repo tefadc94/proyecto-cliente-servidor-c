@@ -6,10 +6,22 @@
 #include <arpa/inet.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <pthread.h>
 
 #define BUFFER_SIZE 65536 // 64 KB
 
-void descargar_archivo(const char *ip, int puerto, const char *archivo) {
+typedef struct {
+    const char *ip;
+    int puerto;
+    char archivo[BUFFER_SIZE];
+} descarga_args;
+
+void *descargar_archivo(void *args) {
+    descarga_args *datos = (descarga_args *)args;
+    const char *ip = datos->ip;
+    int puerto = datos->puerto;
+    const char *archivo = datos->archivo;
+
     int sock;
     struct sockaddr_in server_addr;
     char buffer[BUFFER_SIZE];
@@ -17,7 +29,7 @@ void descargar_archivo(const char *ip, int puerto, const char *archivo) {
     // Crear socket
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("Error al crear el socket");
-        return;
+        pthread_exit(NULL);
     }
 
     // Configurar tiempo de espera para el socket
@@ -33,14 +45,14 @@ void descargar_archivo(const char *ip, int puerto, const char *archivo) {
     if (inet_pton(AF_INET, ip, &server_addr.sin_addr) <= 0) {
         perror("Dirección IP no válida");
         close(sock);
-        return;
+        pthread_exit(NULL);
     }
 
     // Conectar al servidor
     if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Error al conectar al servidor");
         close(sock);
-        return;
+        pthread_exit(NULL);
     }
 
     // Enviar solicitud HTTP
@@ -53,7 +65,7 @@ void descargar_archivo(const char *ip, int puerto, const char *archivo) {
         if (mkdir("../descargas", 0700) != 0) {
             perror("Error al crear el directorio descargas");
             close(sock);
-            return;
+            pthread_exit(NULL);
         }
     }
 
@@ -66,7 +78,7 @@ void descargar_archivo(const char *ip, int puerto, const char *archivo) {
     if (!fp) {
         perror("Error al abrir el archivo para escritura");
         close(sock);
-        return;
+        pthread_exit(NULL);
     }
 
     // Leer respuesta del servidor
@@ -75,7 +87,7 @@ void descargar_archivo(const char *ip, int puerto, const char *archivo) {
         perror("Error al recibir datos del servidor");
         fclose(fp);
         close(sock);
-        return;
+        pthread_exit(NULL);
     }
 
     // Procesar encabezados HTTP
@@ -87,12 +99,12 @@ void descargar_archivo(const char *ip, int puerto, const char *archivo) {
         perror("No se encontraron los encabezados HTTP");
         fclose(fp);
         close(sock);
-        return;
+        pthread_exit(NULL);
     }
 
     // Recibir y escribir el resto del archivo
     size_t total_bytes_received = bytes_received - (body - buffer);
-    printf("\rBytes descargados: %zu", total_bytes_received);
+    printf("\rBytes descargados de %s: %zu", archivo, total_bytes_received);
     fflush(stdout);
 
     while ((bytes_received = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
@@ -101,7 +113,7 @@ void descargar_archivo(const char *ip, int puerto, const char *archivo) {
             break;
         }
         total_bytes_received += bytes_received;
-        printf("\rBytes descargados: %zu", total_bytes_received);
+        printf("\rBytes descargados de %s: %zu", archivo, total_bytes_received);
         fflush(stdout);
     }
 
@@ -114,6 +126,8 @@ void descargar_archivo(const char *ip, int puerto, const char *archivo) {
     fclose(fp);
     close(sock);
     printf("Archivo %s descargado correctamente en descargas.\n", archivo);
+
+    pthread_exit(NULL);
 }
 
 int main() {
@@ -130,17 +144,36 @@ int main() {
 
     // Dividir los nombres de los archivos por comas
     char *archivo = strtok(archivos, ",");
+    pthread_t threads[BUFFER_SIZE];
+    int thread_count = 0;
+
     while (archivo != NULL) {
         // Eliminar espacios al inicio y al final del nombre del archivo
         while (*archivo == ' ') archivo++;
         char *end = archivo + strlen(archivo) - 1;
         while (end > archivo && *end == ' ') *end-- = '\0';
 
-        // Descargar el archivo
-        descargar_archivo(ip, puerto, archivo);
+        // Crear argumentos para el hilo
+        descarga_args *args = malloc(sizeof(descarga_args));
+        args->ip = ip;
+        args->puerto = puerto;
+        strncpy(args->archivo, archivo, BUFFER_SIZE);
+
+        // Crear un hilo para descargar el archivo
+        if (pthread_create(&threads[thread_count], NULL, descargar_archivo, args) != 0) {
+            perror("Error al crear el hilo");
+            free(args);
+        } else {
+            thread_count++;
+        }
 
         // Siguiente archivo
         archivo = strtok(NULL, ",");
+    }
+
+    // Esperar a que todos los hilos terminen
+    for (int i = 0; i < thread_count; i++) {
+        pthread_join(threads[i], NULL);
     }
 
     return 0;
