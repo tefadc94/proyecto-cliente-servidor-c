@@ -1,8 +1,18 @@
 #include "common.h"
 #include <signal.h>
 #include <sys/wait.h>
+#include <time.h> // Para medir el tiempo de respuesta
+#include <sys/resource.h> // Para medir el uso de memoria
+
+// Variables globales para métricas
+static int conexiones_exitosas = 0;
+static int conexiones_fallidas = 0;
+static size_t total_bytes_enviados = 0;
 
 void handle_client(int client_fd, struct sockaddr_in* client_addr) {
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     char client_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(client_addr->sin_addr), client_ip, INET_ADDRSTRLEN);
     
@@ -72,6 +82,22 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
     }
 
     close(client_fd);
+
+    // Medir tiempo de respuesta
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double tiempo_respuesta = (end.tv_sec - start.tv_sec) * 1000.0 + 
+                               (end.tv_nsec - start.tv_nsec) / 1000000.0;
+    log_process_detail(pid, "Tiempo de respuesta: %.2f ms", tiempo_respuesta);
+
+    // Medir memoria máxima utilizada
+    struct rusage usage;
+    getrusage(RUSAGE_SELF, &usage);
+    log_process_detail(pid, "Memoria máxima utilizada: %ld KB", usage.ru_maxrss);
+
+    // Mostrar métricas acumuladas
+    log_server_detail("Conexiones exitosas: %d", conexiones_exitosas);
+    log_server_detail("Conexiones fallidas: %d", conexiones_fallidas);
+    
     log_process_detail(pid, "Proceso hijo finalizado");
     exit(EXIT_SUCCESS);
 }
@@ -129,9 +155,11 @@ int main() {
         } else if (pid > 0) {
             log_process_detail(pid, "Proceso hijo creado para conexión");
             close(client_fd);
+            conexiones_exitosas++;
         } else {
             log_server_detail("Error al crear proceso hijo: %s", strerror(errno));
             close(client_fd);
+            conexiones_fallidas++;
         }
     }
 

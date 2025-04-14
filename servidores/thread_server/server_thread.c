@@ -1,4 +1,13 @@
 #include "common.h"
+#include <time.h>
+#include <sys/resource.h>
+#include <pthread.h>
+
+// Variables globales para métricas
+static int conexiones_exitosas = 0;
+static int conexiones_fallidas = 0;
+static size_t total_bytes_enviados = 0;
+static pthread_mutex_t metrics_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct {
     int client_fd;
@@ -8,6 +17,9 @@ typedef struct {
 
 void* client_thread(void* arg) {
     ThreadData* data = (ThreadData*)arg;
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     char client_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(data->client_addr.sin_addr), client_ip, INET_ADDRSTRLEN);
     
@@ -22,6 +34,12 @@ void* client_thread(void* arg) {
                          bytes == 0 ? "Conexión cerrada" : strerror(errno));
         close(data->client_fd);
         free(data);
+
+        // Incremenetar conexiones fallidas
+        pthread_mutex_lock(&metrics_mutex);
+        conexiones_fallidas++;
+        pthread_mutex_unlock(&metrics_mutex);
+
         release_thread_slot();
         return NULL;
     }
@@ -38,6 +56,12 @@ void* client_thread(void* arg) {
         log_request(client_ip, "BAD REQUEST", 400);
         close(data->client_fd);
         free(data);
+
+        // Incremenetar conexiones fallidas
+        pthread_mutex_lock(&metrics_mutex); 
+        conexiones_fallidas++;
+        pthread_mutex_unlock(&metrics_mutex);
+
         release_thread_slot();
         return NULL;
     }
@@ -51,6 +75,12 @@ void* client_thread(void* arg) {
         log_request(client_ip, method, 405);
         close(data->client_fd);
         free(data);
+
+        // Incremenetar conexiones fallidas
+        pthread_mutex_lock(&metrics_mutex);
+        conexiones_fallidas++;
+        pthread_mutex_unlock(&metrics_mutex);
+
         release_thread_slot();
         return NULL;
     }
@@ -73,12 +103,23 @@ void* client_thread(void* arg) {
         log_thread_detail(data->tid, "Archivo no encontrado");
         enviar_error(data->client_fd, 404, "Archivo no encontrado");
         log_request(client_ip, path, 404);
+
+        // Incrementar conexiones fallidas
+        pthread_mutex_lock(&metrics_mutex);
+        conexiones_fallidas++;
+        pthread_mutex_unlock(&metrics_mutex);
     } else {
         FileInfo info = get_file_info(full_path);
         log_thread_detail(data->tid, "Archivo encontrado - Tamaño: %zu bytes, Tipo: %s", 
                          info.size, info.content_type);
         
         enviar_archivo(data->client_fd, full_path);
+
+        // Incrementar bytes enviados y conexiones exitosas
+        pthread_mutex_lock(&metrics_mutex);
+        conexiones_exitosas++;
+        pthread_mutex_unlock(&metrics_mutex);
+
         log_request(client_ip, path, 200);
         log_thread_detail(data->tid, "Archivo enviado con éxito");
     }
@@ -86,6 +127,13 @@ void* client_thread(void* arg) {
     close(data->client_fd);
     free(data);
     release_thread_slot();
+
+    // Medir tiempo de respuesta
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double tiempo_respuesta = (end.tv_sec - start.tv_sec) * 1000.0 + 
+                               (end.tv_nsec - start.tv_nsec) / 1000000.0;
+    log_thread_detail(data->tid, "Tiempo de respuesta: %.2f ms", tiempo_respuesta);
+
     log_thread_detail(data->tid, "Conexión cerrada");
     return NULL;
 }
@@ -154,6 +202,17 @@ int main() {
         data->tid = tid;
         pthread_detach(tid);
         log_thread_detail(tid, "Hilo creado para atender conexión");
+
+        // Memoria máxima utilizada
+        struct rusage usage;
+        getrusage(RUSAGE_SELF, &usage);
+        log_server_detail("Memoria máxima utilizada: %ld KB", usage.ru_maxrss);
+    
+        // Mostrar métricas acumuladas
+        pthread_mutex_lock(&metrics_mutex);
+        log_server_detail("Conexiones exitosas: %d", conexiones_exitosas);
+        log_server_detail("Conexiones fallidas: %d", conexiones_fallidas);
+        pthread_mutex_unlock(&metrics_mutex);
     }
 
     close(server_fd);

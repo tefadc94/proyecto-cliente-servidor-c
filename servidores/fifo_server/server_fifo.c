@@ -1,6 +1,16 @@
 #include "common.h"
+#include <time.h> // Para medir el tiempo de respuesta
+#include <sys/resource.h> // Para medir el uso de memoria
+
+// Variables globales para métricas
+static int conexiones_exitosas = 0;
+static int conexiones_fallidas = 0;
+static int total_bytes_enviados = 0;
 
 void handle_client(int client_fd, struct sockaddr_in* client_addr) {
+    struct timespec start, end; // Para medir el tiempo de respuesta
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
     char client_ip[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &(client_addr->sin_addr), client_ip, INET_ADDRSTRLEN);
     
@@ -12,6 +22,7 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
     if (bytes <= 0) {
         log_server_detail("Error recibiendo solicitud: %s", strerror(errno));
         close(client_fd);
+        conexiones_fallidas++;
         return;
     }
     buffer[bytes] = '\0';
@@ -25,6 +36,7 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
         enviar_error(client_fd, 400, "Solicitud inválida");
         log_request(client_ip, "BAD REQUEST", 400);
         close(client_fd);
+        conexiones_fallidas++;
         return;
     }
 
@@ -37,6 +49,7 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
         enviar_error(client_fd, 405, "Método no soportado");
         log_request(client_ip, method, 405);
         close(client_fd);
+        conexiones_fallidas++;
         return;
     }
 
@@ -45,6 +58,7 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
         enviar_error(client_fd, 403, "Acceso denegado");
         log_request(client_ip, path, 403);
         close(client_fd);
+        conexiones_fallidas++;
         return;
     }
 
@@ -58,14 +72,22 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
         log_server("Archivo no encontrado");
         enviar_error(client_fd, 404, "Archivo no existe");
         log_request(client_ip, path, 404);
+        conexiones_fallidas++;
     } else {
         enviar_archivo(client_fd, full_path);
         log_request(client_ip, path, 200);
         log_server("Transferencia exitosa");
+        conexiones_exitosas++;
     }
 
     close(client_fd);
     log_server("Conexión cerrada");
+
+    // Medir el tiempo de respuesta
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double tiempo_respuesta = (end.tv_sec - start.tv_sec) * 1000.0 +
+    (end.tv_nsec - start.tv_nsec) / 1000000.0;
+    log_server_detail("Tiempo de respuesta: %.2f ms", tiempo_respuesta);
 }
 
 int main() {
@@ -117,6 +139,16 @@ int main() {
         }
 
         handle_client(client_fd, &client_addr);
+
+        // Medir memoria máxim utilizada
+        struct rusage usage;
+        getrusage(RUSAGE_SELF, &usage);
+        log_server_detail("Memoria máxima utilizada: %ld KB", usage.ru_maxrss);
+        
+        // Mostrar métricas acumuladas
+        log_server_detail("Conexiones exitosas: %d", conexiones_exitosas);
+        log_server_detail("Conexiones fallidas: %d", conexiones_fallidas);
+        log_server_detail("Total de datos enviados: %.2f MB", total_bytes_enviados / (1024.0 * 1024.0));
     }
 
     close(server_fd);

@@ -39,16 +39,16 @@ El objetivo principal es comparar tres modelos de concurrencia para el manejo de
 
 - THREAD: Crea un nuevo hilo por cada solicitud utilizando la biblioteca pthread.
 
-(Actualizar, casi esta bien pero falta, soporta más formatos, etc...)
-
 ### **Alcance Técnico**  
-| Componente          | Especificaciones                         |
-|---------------------|------------------------------------------|
-| Protocolo           | HTTP/1.0 (GET)                           |
-| Formatos soportados | TXT, HTML, JPEG, PNG, PDF                |
-| Códigos HTTP        | 200 OK, 404 Not Found                    |
-| Timeout             | 30 segundos                              |
-| Capacidad máxima    | 100 clientes concurrentes                |
+### **Especificaciones Técnicas**
+
+| **Componente**       | **Especificaciones**                                                                 |
+|-----------------------|-------------------------------------------------------------------------------------|
+| **Protocolo**         | HTTP/1.0 (GET)                                                                     |
+| **Formatos soportados** | TXT, Imágenes, HTML, BIN, y cualquier otro tipo de archivo presente en el directorio configurado |
+| **Códigos HTTP**      | 200 OK, 404 Not Found                                                              |
+| **Timeout**           | 30 segundos                                                                        |
+| **Capacidad máxima**  | 100 clientes concurrentes                                                          |
 
 ---
 
@@ -156,7 +156,20 @@ Este enfoque mejora significativamente el rendimiento al permitir que las descar
 
 ## **Análisis de Resultados**  
 
-A continuación se presenta una evaluación detallada del desempeño de los servidores implementados bajo los modelos de concurrencia FIFO, FORK y THREAD. Se realizaron pruebas exhaustivas para medir métricas clave como tiempo de respuesta, uso de memoria, throughput y estabilidad bajo diferentes condiciones de carga. Además, se compararon los resultados obtenidos para identificar las fortalezas y debilidades de cada modelo, proporcionando una visión clara de su comportamiento en escenarios reales.
+A continuación, se presenta un listado detallado de todas las actividades y tareas realizadas a nivel funcional, indicando el porcentaje de realización y, en caso de no ser el 100%, una justificación correspondiente.
+
+### **Listado de Actividades y Porcentaje de Realización**
+
+| **Actividad/Tarea**                  | **Porcentaje de Realización** | **Justificación (si no es 100%)**                     |
+|--------------------------------------|-------------------------------|-------------------------------------------------------|
+| Implementación del servidor FIFO     | 100%                          | N/A                                                   |
+| Implementación del servidor FORK     | 100%                          | N/A                                                   |
+| Implementación del servidor THREAD   | 100%                          | N/A                                                   |
+| Implementación del cliente multihilo | 100%                          | N/A                                                   |
+| Pruebas de funcionalidad             | 100%                          | N/A                                                   |
+| Pruebas de estrés                    | 100%                          | N/A                                                   |
+| Documentación técnica                | 95%                           | Pendiente agregar resultados finales de pruebas.      |
+| Revisión final                       | 100%                          | N/A                                                   |
 
 ### **Resultados de Pruebas de Concurrencia**  
 
@@ -177,48 +190,118 @@ A continuación se presenta una evaluación detallada del desempeño de los serv
 | Servidor THREAD     | 100%     | ✅ Validado    | 75% uso CPU                  |
 | Cliente             | 100%     | ✅ Validado    | 12 descargas paralelas       |
 
-(poner resultados reales*)
 ### **Rendimiento Comparativo**  
-| Métrica               | FIFO    | FORK     | THREAD   |
-|-----------------------|---------|----------|----------|
-| Tiempo respuesta (ms) | 1420    | 980      | **340**  |
-| Memoria máxima (MB)   | 52      | 680      | 205      |
-| Throughput (MB/s)     | 12.4    | 18.7     | **42.3** |
-| Conexiones exitosas   | 100%    | 97%      | 100%     |
 
----
-(poner resultados de las pruebas y agregar pruebas necesarias)
+Los resultados de rendimiento se registran en una tabla comparativa que incluye métricas como tiempo de respuesta, uso de memoria, throughput y escalabilidad. Estas métricas permiten evaluar la eficiencia y robustez de cada modelo de servidor.
+
+| **Métrica**           | **FIFO** | **FORK** | **THREAD** |
+|-----------------------|----------|----------|------------|
+| Tiempo de Respuesta   | X ms     | Y ms     | Z ms       |
+| Uso de Memoria        | X MB     | Y MB     | Z MB       |
+| Throughput            | X MB/s   | Y MB/s   | Z MB/s     |
+| Conexiones Exitosas   | X%       | Y%       | Z%         |
+| Escalabilidad         | Baja     | Media    | Alta       |
+| Manejo de Errores     | ✅        | ✅        | ✅          |
+
+Este enfoque te permitirá evaluar objetivamente el rendimiento de los tres modelos de servidores.
+
+Estas métricas permiten evaluar tanto el rendimiento como la robustez de los servidores implementados.
+
 ## **Casos de Prueba**  
 
+A continuación, se describen las pruebas realizadas para evaluar la funcionalidad completa del programa, incluyendo los resultados esperados y los obtenidos.
+
 ### **Prueba 1: Solicitud Básica**  
+#### **Descripción:** Solicitar varios archivos pequeños desde el cliente.  
+#### **Comando:**  
 ```bash
 ./cliente_http noticia.txt mi_archivo.txt html_ejemplo.html golden.png
-```
+```  
+#### **Resultado Esperado:**  
+- Los archivos solicitados se descargan correctamente en el directorio del cliente.  
+- El servidor responde con código HTTP 200 OK para cada archivo.  
+
+#### **Resultado Obtenido:**  
+- ✅ Todos los archivos se descargaron correctamente.  
+- ✅ Respuesta del servidor: 200 OK para cada archivo.  
+
+<img src="image-5.png" alt="alt text" width="800">
+<img src="image-6.png" alt="alt text" width="600">
+
+<img src="image-7.png" alt="alt text" width="600">
 
 ### **Prueba 2: Archivo Grande (2.5GB)**  
+#### **Descripción:** Solicitar un archivo grande para evaluar el manejo de transferencias extensas.  
+#### **Comando:**  
 ```bash
 dd if=/dev/zero of=archivos/prueba_grande.bin bs=1G count=2
-./cliente_http prueba.bin
-```
+./cliente_http prueba_grande.bin
+```  
+#### **Resultado Esperado:**  
+- El archivo se descarga completamente sin interrupciones.  
+- El servidor mantiene la conexión activa hasta completar la transferencia.  
+
+#### **Resultado Obtenido:**  
+- ✅ El archivo se descargó completamente.  
+- ✅ El servidor mantuvo la conexión activa durante toda la transferencia.  
+
+<img src="image-8.png" alt="alt text" width="800">
+<img src="image-9.png" alt="alt text" width="800">
+<img src="image-10.png" alt="alt text" width="800">
 
 ### **Prueba 3: Stress Test**  
+#### **Descripción:** Simular múltiples clientes concurrentes solicitando archivos al servidor.  
+#### **Comando:**  
 ```bash
 for i in {1..50}; do ./cliente_http file$i.txt & done
-```
+```  
+#### **Resultado Esperado:**  
+- El servidor maneja todas las solicitudes sin fallar.  
+- Los archivos se descargan correctamente.  
 
----
-(poner datos reales)
+#### **Resultado Obtenido:**  
+- ✅ El servidor manejó todas las solicitudes sin errores.  
+- ✅ Todos los archivos se descargaron correctamente.  
+
+<img src="image-11.png" alt="alt text" width="800">
+
+<img src="image-12.png" alt="alt text" width="400">
+
+### **Prueba 4: Solicitud de Archivo Inexistente**  
+#### **Descripción:** Solicitar un archivo que no existe en el servidor.  
+#### **Comando:**  
+```bash
+./cliente_http archivo_inexistente.txt
+```  
+#### **Resultado Esperado:**  
+- El servidor responde con código HTTP 404 Not Found.  
+- No se genera ningún archivo en el cliente.  
+
+#### **Resultado Obtenido:**  
+- ✅ Respuesta del servidor: 404 Not Found.  
+- ✅ No se generó ningún archivo en el cliente. 
+
+<img src="image-1.png" alt="alt text" width="800">
+
+<img src="image.png" alt="alt text" width="600">
+
 ## **Comparativa Técnica**  
-[CODE_START]
-| Criterio          | Java Threads         | Pthreads           |
-|-------------------|----------------------|--------------------|
-| Overhead creación | 15-20 ms             | 0.5-2 ms           |
-| Memoria/hilo      | ~1 MB                | ~8 KB              |
-| Sincronización    | Monitores            | Mutex/Cond vars    |
-| Portabilidad      | Multiplataforma      | Dependiente de SO  |
-[CODE_END]
 
-(BUSCAR QUE COLOCAR)
+En la siguiente tabla se presenta una comparación entre los hilos de Java y Pthreads, dos enfoques populares para la programación concurrente. Esta comparación se centra en aspectos clave como usabilidad, portabilidad, rendimiento y manejo de errores.
+
+| **Aspecto**          | **Java Threads**                                                                 | **Pthreads**                                                                 |
+|-----------------------|----------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| **Usabilidad**        | Ofrece una API de alto nivel, fácil de usar y adecuada para desarrolladores Java. | Requiere conocimientos avanzados de programación en C y manejo de bajo nivel. |
+| **Portabilidad**      | Multiplataforma, funciona en cualquier sistema con una JVM.                      | Dependiente del sistema operativo, diseñado principalmente para entornos POSIX. |
+| **Rendimiento**       | Mayor overhead debido a la abstracción de la JVM.                                | Más eficiente en términos de uso de recursos, con menor overhead.            |
+| **Sincronización**    | Utiliza monitores y palabras clave como `synchronized` para manejar concurrencia. | Requiere el uso explícito de mutexes y variables de condición.               |
+| **Memoria por Hilo**  | Consume más memoria (~1 MB por hilo) debido a la sobrecarga de la JVM.           | Consume menos memoria (~8 KB por hilo), ideal para aplicaciones de alto rendimiento. |
+| **Creación de Hilos** | Más lenta debido a la inicialización de la JVM y la gestión de recursos.          | Más rápida, ya que interactúa directamente con el sistema operativo.         |
+| **Depuración**        | Más sencilla gracias a herramientas integradas en entornos como Eclipse o IntelliJ. | Más compleja, requiere herramientas externas como GDB para depuración.       |
+| **Escalabilidad**     | Adecuada para aplicaciones multiplataforma con requisitos moderados de concurrencia. | Ideal para aplicaciones de alto rendimiento en sistemas específicos.         |
+| **Manejo de Errores** | Manejo de excepciones integrado en el lenguaje.                                  | Requiere manejo manual de errores mediante códigos de retorno.               |
+
+En resumen, los hilos de Java son más accesibles y portables, ideales para aplicaciones multiplataforma. Por otro lado, Pthreads ofrece un rendimiento superior y un control más detallado, siendo más adecuado para sistemas críticos y de alto rendimiento.
 
 ## **Evaluación**  
 
@@ -242,6 +325,8 @@ make clean && make
 ```
 Esto ejecutará el Makefile, compilará el código y lo dejará listo para su ejecución.
 
+![alt text](image-2.png)
+
 ### **Ejecución**  
 
 #### **Servidor**  
@@ -255,12 +340,15 @@ En una terminal, ejecute el servidor que desea utilizar. Solo se puede usar un s
 ./server_fork
 ```
 
+![alt text](image-3.png)
+
 #### **Cliente**  
 En otra terminal diferente, ejecute el cliente con los archivos que desea procesar:  
 ```bash
 # Cliente
 ./cliente_http noticia.txt
 ```
+![alt text](image-4.png)
 
 ## **Bitácora de Trabajo**  
 
@@ -279,9 +367,8 @@ La siguiente tabla resume las horas invertidas en cada actividad del proyecto.
 | 11/04/2025  | Implementación Cliente     |     8     |  
 | 12/04/2025  | Pruebas de funcionalidad   |     4     |  
 | 12/04/2025  | Documentación              |     4     |  
-| 13/04/2025  | Pruebas de estrés          |     7     |  
-| 14/04/2025  | Comparativa técnica        |     3     |  
-| 14/04/2025  | Revisión de documentación  |     4     |  
+| 13/04/2025  | Pruebas de estrés          |     7     |   
+| 14/04/2025  | Revisión de documentación  |     6     |  
 | 14/04/2025  | Revisión final             |     2     |  
 | 15/04/2025  | Entrega del proyecto       |     1     |    
 
@@ -297,5 +384,9 @@ El proyecto permitió aplicar conceptos clave de sistemas operativos como socket
 
 ## **Referencias**  
 1. Stevens, W. R. (2003). *UNIX Network Programming*  
-2. Documentación oficial de Pthreads  
-3. RFC 1945 - HTTP/1.0  
+2. RFC 1945 - HTTP/1.0
+
+3. Goetz, B. (2006). *Java Concurrency in Practice*. Addison-Wesley.
+4. Butenhof, D. R. (1997). *Programming with POSIX Threads*. Addison-Wesley.
+5. Oracle. (n.d.). *Java Threads Documentation*. Retrieved from https://docs.oracle.com/javase/tutorial/essential/concurrency/
+6. The Open Group. (n.d.). *POSIX Threads Documentation*. Retrieved from https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_create.html
