@@ -176,12 +176,12 @@ void enviar_error(int socket_cliente, int code, const char* message) {
 }
 
 
-void enviar_archivo(int socket_cliente, const char* ruta) {
+size_t enviar_archivo(int socket_cliente, const char* ruta) {
     int file_fd = open(ruta, O_RDONLY);
     if (file_fd < 0) {
         log_server_detail("Error abriendo archivo: %s (%s)", ruta, strerror(errno));
         enviar_error(socket_cliente, 404, "Archivo no encontrado");
-        return;
+        return 0;
     }
 
     FileInfo info = get_file_info(ruta);
@@ -208,9 +208,11 @@ void enviar_archivo(int socket_cliente, const char* ruta) {
     off_t offset = 0;
     size_t remaining = info.size;
     ssize_t sent;
+    size_t bytes_to_send = 0;
     
     while (remaining > 0 && (sent = sendfile(socket_cliente, file_fd, &offset, remaining)) > 0) {
         remaining -= sent;
+        bytes_to_send += sent;
     }
 
     if (sent < 0) {
@@ -220,6 +222,8 @@ void enviar_archivo(int socket_cliente, const char* ruta) {
     close(file_fd);
     log_server_detail("Transferencia completada: %s (%zu/%zu bytes)", 
                      ruta, info.size - remaining, info.size);
+    
+    return bytes_to_send;
 }
 
 // Registra una solicitud en el log

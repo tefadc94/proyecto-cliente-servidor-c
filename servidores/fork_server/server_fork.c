@@ -8,6 +8,7 @@
 static int conexiones_exitosas = 0;
 static int conexiones_fallidas = 0;
 static size_t total_bytes_enviados = 0;
+static double total_tiempo_respuesta = 0;
 
 void handle_client(int client_fd, struct sockaddr_in* client_addr) {
     struct timespec start, end;
@@ -27,6 +28,7 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
         log_process_detail(pid, "Error al recibir datos: %s", 
                           bytes == 0 ? "Conexión cerrada" : strerror(errno));
         close(client_fd);
+        conexiones_fallidas++;
         exit(EXIT_FAILURE);
     }
     buffer[bytes] = '\0';
@@ -41,6 +43,7 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
         enviar_error(client_fd, 400, "Solicitud mal formada");
         log_request(client_ip, "BAD REQUEST", 400);
         close(client_fd);
+        conexiones_fallidas++;
         exit(EXIT_FAILURE);
     }
 
@@ -52,6 +55,7 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
         enviar_error(client_fd, 405, "Método no permitido");
         log_request(client_ip, method, 405);
         close(client_fd);
+        conexiones_fallidas++;
         exit(EXIT_FAILURE);
     }
 
@@ -60,6 +64,7 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
         enviar_error(client_fd, 403, "Nombre de archivo inválido");
         log_request(client_ip, path, 403);
         close(client_fd);
+        conexiones_fallidas++;
         exit(EXIT_FAILURE);
     }
 
@@ -69,6 +74,7 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
 
     if (access(full_path, F_OK) == -1) {
         log_process_detail(pid, "Archivo no encontrado");
+        conexiones_fallidas++;
         enviar_error(client_fd, 404, "Archivo no encontrado");
         log_request(client_ip, path, 404);
     } else {
@@ -76,7 +82,8 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
         log_process_detail(pid, "Archivo encontrado - Tamaño: %zu bytes, Tipo: %s", 
                           info.size, info.content_type);
         
-        enviar_archivo(client_fd, full_path);
+        size_t bytes_received = enviar_archivo(client_fd, full_path);
+        total_bytes_enviados += bytes_received;
         log_request(client_ip, path, 200);
         log_process_detail(pid, "Archivo enviado con éxito");
     }
@@ -87,19 +94,57 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
     clock_gettime(CLOCK_MONOTONIC, &end);
     double tiempo_respuesta = (end.tv_sec - start.tv_sec) * 1000.0 + 
                                (end.tv_nsec - start.tv_nsec) / 1000000.0;
-    log_process_detail(pid, "Tiempo de respuesta: %.2f ms", tiempo_respuesta);
+    registrar_tiempo_respuesta(tiempo_respuesta);
+    registrar_throughput(tiempo_respuesta);
 
     // Medir memoria máxima utilizada
-    struct rusage usage;
-    getrusage(RUSAGE_SELF, &usage);
-    log_process_detail(pid, "Memoria máxima utilizada: %ld KB", usage.ru_maxrss);
+    registrar_uso_memoria();
 
     // Mostrar métricas acumuladas
-    log_server_detail("Conexiones exitosas: %d", conexiones_exitosas);
-    log_server_detail("Conexiones fallidas: %d", conexiones_fallidas);
+    registrar_conexiones_exitosas();
     
     log_process_detail(pid, "Proceso hijo finalizado");
     exit(EXIT_SUCCESS);
+}
+
+
+// Función para registrar conexiones exitosas
+void registrar_conexiones_exitosas(){
+    int total_conexiones = conexiones_exitosas + conexiones_fallidas;
+    if (total_conexiones > 0) {
+        double porcentaje_exitosas = (double)conexiones_exitosas / total_conexiones * 100.0;
+        log_server_detail("Conexiones exitosas: %d (%.2f%%)", conexiones_exitosas, porcentaje_exitosas);
+    } else {
+        log_server_detail("No se han registrado conexiones exitosas.");
+    }
+}
+
+// Función para registrar el throughput
+void registrar_throughput(double tiempo_respuesta){
+    double throughput = (total_bytes_enviados / (1024.0 * 1024.0)) / (tiempo_respuesta / 1000.0);
+    log_server_detail("Throughput: %.2f MB/s", throughput);
+}
+
+// Función para registrar el uso de memoria
+void registrar_uso_memoria(){
+    struct rusage usage;
+    if (getrusage(RUSAGE_SELF, &usage) == 0) {
+        log_server_detail("Uso de memoria: %ld KB", usage.ru_maxrss);
+    } else {
+        log_server_detail("Error al obtener uso de memoria: %s", strerror(errno));
+    }
+}
+
+// Función para registrar tiempo de respuesta promedio
+void registrar_tiempo_respuesta(double tiempo_respuesta) {
+    total_tiempo_respuesta += tiempo_respuesta; // Acumula el tiempo de respuesta
+
+    if (conexiones_exitosas > 0) {
+        double promedio_tiempo_respuesta = total_tiempo_respuesta / conexiones_exitosas;
+        log_server_detail("Tiempo de respuesta promedio: %.2f ms", promedio_tiempo_respuesta);
+    } else {
+        log_server_detail("No hay conexiones exitosas para calcular el tiempo de respuesta promedio.");
+    }
 }
 
 int main() {

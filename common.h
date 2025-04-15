@@ -44,7 +44,7 @@ typedef struct {
 int validar_nombre_archivo(const char* filename);
 FileInfo get_file_info(const char* path);
 void enviar_error(int socket_cliente, int code, const char* message);
-void enviar_archivo(int socket_cliente, const char* ruta);
+size_t enviar_archivo(int socket_cliente, const char* ruta);
 void log_request(const char* ip, const char* request, int response_code);
 const char* get_content_type(const char* filename);
 

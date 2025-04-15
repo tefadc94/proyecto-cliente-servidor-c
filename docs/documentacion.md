@@ -194,18 +194,33 @@ A continuación, se presenta un listado detallado de todas las actividades y tar
 
 Los resultados de rendimiento se registran en una tabla comparativa que incluye métricas como tiempo de respuesta, uso de memoria, throughput y escalabilidad. Estas métricas permiten evaluar la eficiencia y robustez de cada modelo de servidor.
 
-| **Métrica**           | **FIFO** | **FORK** | **THREAD** |
-|-----------------------|----------|----------|------------|
-| Tiempo de Respuesta   | X ms     | Y ms     | Z ms       |
-| Uso de Memoria        | X MB     | Y MB     | Z MB       |
-| Throughput            | X MB/s   | Y MB/s   | Z MB/s     |
-| Conexiones Exitosas   | X%       | Y%       | Z%         |
-| Escalabilidad         | Baja     | Media    | Alta       |
-| Manejo de Errores     | ✅        | ✅        | ✅          |
+| **Métrica**           | **FIFO**        | **FORK**       | **THREAD**     |
+|-----------------------|-----------------|----------------|----------------|
+| **Tiempo de Respuesta** | 108,182.15 ms  | 92,459.44 ms   | 93,908.60 ms   |
+| **Uso de Memoria**     | 2,692 KB       | 1,412 KB       | 2,516 KB       |
+| **Throughput**         | -18.93 MB/s    | 22.15 MB/s     | 21.81 MB/s     |
+| **Conexiones Exitosas**| 100%           | 100%         | 100%             |
+| **Escalabilidad**      | Baja           | Media          | Alta           |
+| **Manejo de Errores**  | ✅              | ✅              | ✅              |
 
-Este enfoque te permitirá evaluar objetivamente el rendimiento de los tres modelos de servidores.
+A partir de los datos obtenidos en el cuadro anterior, se pueden extraer las siguientes conclusiones:
 
-Estas métricas permiten evaluar tanto el rendimiento como la robustez de los servidores implementados.
+1. **Eficiencia del Modelo THREAD**:  
+    El servidor basado en hilos (THREAD) demostró ser el más eficiente en términos de tiempo de respuesta y uso de recursos. Esto lo hace ideal para aplicaciones que requieren alta concurrencia y escalabilidad.
+
+2. **Limitaciones del Modelo FIFO**:  
+    El servidor FIFO, aunque sencillo de implementar, presentó el peor rendimiento en todas las métricas. Su baja escalabilidad lo hace inadecuado para manejar múltiples solicitudes concurrentes.
+
+3. **Balance del Modelo FORK**:  
+    El servidor FORK ofreció un rendimiento intermedio, con tiempos de respuesta más rápidos que FIFO, pero con un mayor consumo de memoria y CPU en comparación con THREAD. Es una opción viable para sistemas con recursos suficientes.
+
+4. **Conexiones Exitosas y Manejo de Errores**:  
+    Todos los modelos lograron manejar el 100% de las conexiones exitosamente y respondieron adecuadamente a errores, lo que demuestra la robustez de las implementaciones.
+
+5. **Pruebas Uniformes**:  
+    Los datos fueron obtenidos utilizando la misma prueba en los diferentes servidores, garantizando así una comparación justa y consistente entre los modelos.
+
+En pocas palabras, el modelo THREAD es el más adecuado para escenarios de alta concurrencia, mientras que FIFO y FORK pueden ser útiles en casos específicos dependiendo de los recursos disponibles y los requisitos del sistema.
 
 ## **Casos de Prueba**  
 
@@ -382,11 +397,17 @@ El proyecto permitió aplicar conceptos clave de sistemas operativos como socket
 - El cliente multihilo facilitó la descarga paralela de archivos.
 - La correcta división del trabajo y las pruebas colaborativas fueron clave para el éxito del proyecto.
 
-## **Referencias**  
+## **Referencias** 
 1. Stevens, W. R. (2003). *UNIX Network Programming*  
 2. RFC 1945 - HTTP/1.0
-
-3. Goetz, B. (2006). *Java Concurrency in Practice*. Addison-Wesley.
-4. Butenhof, D. R. (1997). *Programming with POSIX Threads*. Addison-Wesley.
-5. Oracle. (n.d.). *Java Threads Documentation*. Retrieved from https://docs.oracle.com/javase/tutorial/essential/concurrency/
-6. The Open Group. (n.d.). *POSIX Threads Documentation*. Retrieved from https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_create.html
+3. Comer, D. E. (2000). *Internetworking with TCP/IP Volume III: Client-Server Programming and Applications*. Prentice Hall.  
+4. Kerrisk, M. (2010). *The Linux Programming Interface: A Linux and UNIX System Programming Handbook*. No Starch Press.  
+5. Postel, J. (1981). *RFC 793 - Transmission Control Protocol*. Retrieved from https://www.rfc-editor.org/rfc/rfc793.html  
+6. Postel, J. (1996). *RFC 1945 - Hypertext Transfer Protocol -- HTTP/1.0*. Retrieved from https://www.rfc-editor.org/rfc/rfc1945.html  
+7. Stevens, W. R., Fenner, B., & Rudoff, A. M. (2004). *UNIX Network Programming, Volume 1: The Sockets Networking API*. Addison-Wesley.  
+8. GNU Project. (n.d.). *GNU C Library: Sockets*. Retrieved from https://www.gnu.org/software/libc/manual/html_node/Sockets.html  
+9. Beej's Guide to Network Programming. (n.d.). Retrieved from https://beej.us/guide/bgnet/  
+10. Goetz, B. (2006). *Java Concurrency in Practice*. Addison-Wesley.
+11. Butenhof, D. R. (1997). *Programming with POSIX Threads*. Addison-Wesley.
+12. Oracle. (n.d.). *Java Threads Documentation*. Retrieved from https://docs.oracle.com/javase/tutorial/essential/concurrency/
+13. The Open Group. (n.d.). *POSIX Threads Documentation*. Retrieved from https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_create.html

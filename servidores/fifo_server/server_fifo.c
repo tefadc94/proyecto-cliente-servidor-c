@@ -6,6 +6,7 @@
 static int conexiones_exitosas = 0;
 static int conexiones_fallidas = 0;
 static int total_bytes_enviados = 0;
+static double total_tiempo_respuesta = 0;
 
 void handle_client(int client_fd, struct sockaddr_in* client_addr) {
     struct timespec start, end; // Para medir el tiempo de respuesta
@@ -74,7 +75,8 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
         log_request(client_ip, path, 404);
         conexiones_fallidas++;
     } else {
-        enviar_archivo(client_fd, full_path);
+        size_t bytes_received = enviar_archivo(client_fd, full_path);
+        total_bytes_enviados += bytes_received;
         log_request(client_ip, path, 200);
         log_server("Transferencia exitosa");
         conexiones_exitosas++;
@@ -83,12 +85,51 @@ void handle_client(int client_fd, struct sockaddr_in* client_addr) {
     close(client_fd);
     log_server("Conexión cerrada");
 
-    // Medir el tiempo de respuesta
     clock_gettime(CLOCK_MONOTONIC, &end);
-    double tiempo_respuesta = (end.tv_sec - start.tv_sec) * 1000.0 +
-    (end.tv_nsec - start.tv_nsec) / 1000000.0;
-    log_server_detail("Tiempo de respuesta: %.2f ms", tiempo_respuesta);
+    double tiempo_respuesta = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
+    registrar_tiempo_respuesta(tiempo_respuesta);
+    registrar_throughput(tiempo_respuesta);
 }
+
+// Función para registrar conexiones exitosas
+void registrar_conexiones_exitosas(){
+    int total_conexiones = conexiones_exitosas + conexiones_fallidas;
+    if (total_conexiones > 0) {
+        double porcentaje_exitosas = (double)conexiones_exitosas / total_conexiones * 100.0;
+        log_server_detail("Conexiones exitosas: %d (%.2f%%)", conexiones_exitosas, porcentaje_exitosas);
+    } else {
+        log_server_detail("No se han registrado conexiones exitosas.");
+    }
+}
+
+// Función para registrar el throughput
+void registrar_throughput(double tiempo_respuesta){
+    double throughput = (total_bytes_enviados / (1024.0 * 1024.0)) / (tiempo_respuesta / 1000.0);
+    log_server_detail("Throughput: %.2f MB/s", throughput);
+}
+
+// Función para registrar el uso de memoria
+void registrar_uso_memoria(){
+    struct rusage usage;
+    if (getrusage(RUSAGE_SELF, &usage) == 0) {
+        log_server_detail("Uso de memoria: %ld KB", usage.ru_maxrss);
+    } else {
+        log_server_detail("Error al obtener uso de memoria: %s", strerror(errno));
+    }
+}
+
+// Función para registrar tiempo de respuesta promedio
+void registrar_tiempo_respuesta(double tiempo_respuesta) {
+    total_tiempo_respuesta += tiempo_respuesta; // Acumula el tiempo de respuesta
+
+    if (conexiones_exitosas > 0) {
+        double promedio_tiempo_respuesta = total_tiempo_respuesta / conexiones_exitosas;
+        log_server_detail("Tiempo de respuesta promedio: %.2f ms", promedio_tiempo_respuesta);
+    } else {
+        log_server_detail("No hay conexiones exitosas para calcular el tiempo de respuesta promedio.");
+    }
+}
+
 
 int main() {
     log_server("Iniciando servidor FIFO");
@@ -139,16 +180,8 @@ int main() {
         }
 
         handle_client(client_fd, &client_addr);
-
-        // Medir memoria máxim utilizada
-        struct rusage usage;
-        getrusage(RUSAGE_SELF, &usage);
-        log_server_detail("Memoria máxima utilizada: %ld KB", usage.ru_maxrss);
-        
-        // Mostrar métricas acumuladas
-        log_server_detail("Conexiones exitosas: %d", conexiones_exitosas);
-        log_server_detail("Conexiones fallidas: %d", conexiones_fallidas);
-        log_server_detail("Total de datos enviados: %.2f MB", total_bytes_enviados / (1024.0 * 1024.0));
+        registrar_conexiones_exitosas();
+        registrar_uso_memoria();
     }
 
     close(server_fd);
