@@ -1,17 +1,21 @@
-<div align ="center">
+<div align="center">
 
 # **Tecnológico de Costa Rica**  
-## Escuela de Ingeniería en Computación  
-### IC-6600 Sistemas Operativos  
-#### Proyecto I: Implementación de Servidores Concurrentes  
+## **Escuela de Ingeniería en Computación**  
+### **IC-6600 Sistemas Operativos**  
+#### **Proyecto I: Implementación de Servidores Concurrentes**  
+
 
 **Integrantes:**  
 Estefanía Delgado Castillo  
 Mariana Fernández Martínez  
 Diana Sanabria Calvo  
 
-**Fecha de Entrega:** 15 de abril de 2025  
-**Profesora:** Ing. Erika Marín Schumann  
+**Fecha de Entrega:**  
+15 de abril de 2025  
+
+**Profesora:**  
+Ing. Erika Marín Schumann  
 
 </div>
 
@@ -26,6 +30,8 @@ Diana Sanabria Calvo
 8. [Bitácora de Trabajo](#bitácora-de-trabajo)  
 9. [Conclusiones](#conclusiones)  
 10. [Referencias](#referencias)  
+
+<div style="page-break-after: always;"></div>
 
 ## **Introducción**  
 
@@ -112,17 +118,17 @@ El servidor THREAD utiliza hilos para manejar múltiples solicitudes de manera c
 // Recibe el descriptor del cliente, procesa la solicitud y cierra la conexión
 void* thread_handler(void* arg) {
     int client_fd = *((int*)arg); // Descriptor del cliente
-    handle_request(client_fd);    // Procesa la solicitud del cliente
-    close(client_fd);             // Cierra la conexión con el cliente
-    return NULL;                  // Finaliza el hilo
+    handle_request(client_fd); // Procesa la solicitud del cliente
+    close(client_fd); // Cierra la conexión con el cliente
+    return NULL; // Finaliza el hilo
 }
 
 // Bucle principal del servidor
 while(1) {
     int client_fd = accept(server_fd, NULL, NULL); // Acepta una nueva conexión de cliente
-    pthread_t thread;                              // Declara un nuevo hilo
+    pthread_t thread; // Declara un nuevo hilo
     pthread_create(&thread, NULL, thread_handler, &client_fd); // Crea un hilo para manejar la solicitud
-    pthread_detach(thread);                        // Desvincula el hilo para que se limpie automáticamente al finalizar
+    pthread_detach(thread); // Desvincula el hilo para que se limpie automáticamente al finalizar
 }
 ```
 
@@ -169,26 +175,27 @@ A continuación, se presenta un listado detallado de todas las actividades y tar
 | Pruebas de funcionalidad             | 100%                          | N/A                                                   |
 | Pruebas de estrés                    | 100%                          | N/A                                                   |
 | Documentación técnica                | 100%                          | N/A                                                   |
-| Revisión final                       | 100%                          | NA                                                    |
-
+| Revisión final                       | 100%                          | N/A                                                    |
+  
 ### **Resultados de Pruebas de Concurrencia**  
 
-| Servidor | Modelo de Concurrencia | Tiempo para 2GB | Logs | Estabilidad                  |
-|----------|-------------------------|-----------------|------|-----------------------------|
-| FIFO     | Secuencial              | ~38s            | ✅   | ✅ (No se cierra)           |
-| Fork     | Procesos                | ~17s            | ✅   | ✅ (Sin procesos zombies)   |
-| Thread   | Hilos                   | ~10s            | ✅*  | ✅ (Manejo eficiente)       |
+| **Servidor** | **Modelo de Concurrencia** | **Tiempo para 2GB** | **Logs** | **Estabilidad**           |
+|--------------|-----------------------------|----------------------|----------|---------------------------|
+| **FIFO**     | Secuencial                 | ~38s                | Sí       | No se cierra              |
+| **Fork**     | Procesos                   | ~17s                | Sí       | Sin procesos zombies      |
+| **Thread**   | Hilos                      | ~10s                | Sí*      | Manejo eficiente          |
 
 > **Nota:** El servidor basado en hilos (*Thread*) requiere manejo cuidadoso de condiciones de carrera para garantizar estabilidad.
+
 
 ### **Estado de Desarrollo y Métricas Clave**
 
 | Componente          | Progreso | Estado         | Métricas Clave               |
 |---------------------|----------|----------------|------------------------------|
-| Servidor FIFO       | 100%     | ✅ Validado    | 45 conexiones/sec            |
-| Servidor FORK       | 100%     | ✅ Validado    | 120 procesos concurrentes    |
-| Servidor THREAD     | 100%     | ✅ Validado    | 75% uso CPU                  |
-| Cliente             | 100%     | ✅ Validado    | 12 descargas paralelas       |
+| Servidor FIFO       | 100%     | Validado    | 45 conexiones/sec            |
+| Servidor FORK       | 100%     | Validado    | 120 procesos concurrentes    |
+| Servidor THREAD     | 100%     | Validado    | 75% uso CPU                  |
+| Cliente             | 100%     | Validado    | 12 descargas paralelas       |
 
 ### **Rendimiento Comparativo**  
 
@@ -201,7 +208,7 @@ Los resultados de rendimiento se registran en una tabla comparativa que incluye 
 | **Throughput**         | -18.93 MB/s    | 22.15 MB/s     | 21.81 MB/s     |
 | **Conexiones Exitosas**| 100%           | 100%         | 100%             |
 | **Escalabilidad**      | Baja           | Media          | Alta           |
-| **Manejo de Errores**  | ✅              | ✅              | ✅              |
+| **Manejo de Errores**  | Sí            | Sí              | Sí              |
 
 A partir de los datos obtenidos en el cuadro anterior, se pueden extraer las siguientes conclusiones:
 
@@ -237,8 +244,8 @@ A continuación, se describen las pruebas realizadas para evaluar la funcionalid
 - El servidor responde con código HTTP 200 OK para cada archivo.  
 
 #### **Resultado Obtenido:**  
-- ✅ Todos los archivos se descargaron correctamente.  
-- ✅ Respuesta del servidor: 200 OK para cada archivo.  
+- Todos los archivos se descargaron correctamente.  
+- Respuesta del servidor: 200 OK para cada archivo.  
 
 <img src="image-5.png" alt="alt text" width="800">
 <img src="image-6.png" alt="alt text" width="600">
@@ -257,8 +264,8 @@ dd if=/dev/zero of=archivos/prueba_grande.bin bs=1G count=2
 - El servidor mantiene la conexión activa hasta completar la transferencia.  
 
 #### **Resultado Obtenido:**  
-- ✅ El archivo se descargó completamente.  
-- ✅ El servidor mantuvo la conexión activa durante toda la transferencia.  
+- El archivo se descargó completamente.  
+- El servidor mantuvo la conexión activa durante toda la transferencia.  
 
 <img src="image-8.png" alt="alt text" width="800">
 <img src="image-9.png" alt="alt text" width="800">
@@ -275,8 +282,8 @@ for i in {1..50}; do ./cliente_http file$i.txt & done
 - Los archivos se descargan correctamente.  
 
 #### **Resultado Obtenido:**  
-- ✅ El servidor manejó todas las solicitudes sin errores.  
-- ✅ Todos los archivos se descargaron correctamente.  
+- El servidor manejó todas las solicitudes sin errores.  
+- Todos los archivos se descargaron correctamente.  
 
 <img src="image-11.png" alt="alt text" width="800">
 
@@ -293,8 +300,8 @@ for i in {1..50}; do ./cliente_http file$i.txt & done
 - No se genera ningún archivo en el cliente.  
 
 #### **Resultado Obtenido:**  
-- ✅ Respuesta del servidor: 404 Not Found.  
-- ✅ No se generó ningún archivo en el cliente. 
+- Respuesta del servidor: 404 Not Found.  
+- No se generó ningún archivo en el cliente. 
 
 <img src="image-1.png" alt="alt text" width="800">
 
@@ -315,6 +322,7 @@ En la siguiente tabla se presenta una comparación entre los hilos de Java y Pth
 | **Depuración**        | Más sencilla gracias a herramientas integradas en entornos como Eclipse o IntelliJ. | Más compleja, requiere herramientas externas como GDB para depuración.       |
 | **Escalabilidad**     | Adecuada para aplicaciones multiplataforma con requisitos moderados de concurrencia. | Ideal para aplicaciones de alto rendimiento en sistemas específicos.         |
 | **Manejo de Errores** | Manejo de excepciones integrado en el lenguaje.                                  | Requiere manejo manual de errores mediante códigos de retorno.               |
+
 
 En resumen, los hilos de Java son más accesibles y portables, ideales para aplicaciones multiplataforma. Por otro lado, Pthreads ofrece un rendimiento superior y un control más detallado, siendo más adecuado para sistemas críticos y de alto rendimiento.
 

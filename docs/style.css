@@ -1,0 +1,54 @@
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+    margin: 20px;
+    color: #333;
+}
+
+h1, h2, h3, h4 {
+    color: #0056b3;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 20px 0;
+}
+
+table, th, td {
+    border: 1px solid #ddd;
+}
+
+th, td {
+    padding: 8px;
+    text-align: left;
+}
+
+th {
+    background-color: #f4f4f4;
+}
+
+.page-break {
+    page-break-before: always; /* Salto de página antes del elemento */
+}
+
+pre {
+    background-color: #f4f4f4; /* Fondo gris claro */
+    border: 1px solid #ddd;   /* Borde gris */
+    border-radius: 5px;       /* Bordes redondeados */
+    padding: 10px;            /* Espaciado interno */
+    overflow-x: auto;         /* Habilitar scroll horizontal si el código es largo */
+    font-family: "Courier New", Courier, monospace; /* Fuente monoespaciada */
+    font-size: 12px;          /* Tamaño de fuente */
+    color: #333;              /* Color del texto */
+}
+
+code {
+    background-color: #f9f9f9; /* Fondo más claro para fragmentos en línea */
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 2px 4px;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 12px;
+    color: #d63384; /* Color para destacar */
+}

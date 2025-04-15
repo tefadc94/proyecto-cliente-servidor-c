@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentación del Proyecto</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<section id="tecnológico-de-costa-rica" data-align="center">
+<h1><strong>Tecnológico de Costa Rica</strong></h1>
+<h2 id="escuela-de-ingeniería-en-computación"><strong>Escuela de
+Ingeniería en Computación</strong></h2>
+<h3 id="ic-6600-sistemas-operativos"><strong>IC-6600 Sistemas
+Operativos</strong></h3>
+<h4
+id="proyecto-i-implementación-de-servidores-concurrentes"><strong>Proyecto
+I: Implementación de Servidores Concurrentes</strong></h4>
+<p><strong>Integrantes:</strong><br />
+Estefanía Delgado Castillo<br />
+Mariana Fernández Martínez<br />
+Diana Sanabria Calvo</p>
+<p><strong>Fecha de Entrega:</strong><br />
+15 de abril de 2025</p>
+<p><strong>Profesora:</strong><br />
+Ing. Erika Marín Schumann</p>
+</section>
+<h2 id="índice"><strong>Índice</strong></h2>
+<ol type="1">
+<li><a href="#introducción">Introducción</a><br />
+</li>
+<li><a href="#estrategia-de-solución">Estrategia de Solución</a><br />
+</li>
+<li><a href="#análisis-de-resultados">Análisis de Resultados</a><br />
+</li>
+<li><a href="#casos-de-prueba">Casos de Prueba</a><br />
+</li>
+<li><a href="#comparativa-técnica">Comparativa Técnica</a><br />
+</li>
+<li><a href="#evaluación">Evaluación</a><br />
+</li>
+<li><a href="#manual-de-usuario">Manual de Usuario</a><br />
+</li>
+<li><a href="#bitácora-de-trabajo">Bitácora de Trabajo</a><br />
+</li>
+<li><a href="#conclusiones">Conclusiones</a><br />
+</li>
+<li><a href="#referencias">Referencias</a></li>
+</ol>
+<div style="page-break-after: always;">
+
+</div>
+<h2 id="introducción"><strong>Introducción</strong></h2>
+<p>Este proyecto consiste en la implementación de tres servidores HTTP
+desarrollados en el lenguaje C y diseñados para ejecutarse en un entorno
+Linux. Cada uno de estos servidores responde a solicitudes de archivos
+realizadas por clientes, ya sea desde un navegador web o desde una
+aplicación cliente propia. El protocolo utilizado para la comunicación
+es HTTP/1.0, por lo que los servidores deben interpretar correctamente
+solicitudes GET y responder con el contenido solicitado o con un mensaje
+de error si el archivo no existe.</p>
+<p>El objetivo principal es comparar tres modelos de concurrencia para
+el manejo de múltiples solicitudes:</p>
+<ul>
+<li><p>FIFO (First-In, First-Out): Atiende una solicitud a la vez de
+forma secuencial.</p></li>
+<li><p>FORK: Crea un nuevo proceso por cada solicitud recibida.</p></li>
+<li><p>THREAD: Crea un nuevo hilo por cada solicitud utilizando la
+biblioteca pthread.</p></li>
+</ul>
+<h3 id="alcance-técnico"><strong>Alcance Técnico</strong></h3>
+<h3 id="especificaciones-técnicas"><strong>Especificaciones
+Técnicas</strong></h3>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 78%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><strong>Componente</strong></th>
+<th><strong>Especificaciones</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Protocolo</strong></td>
+<td>HTTP/1.0 (GET)</td>
+</tr>
+<tr class="even">
+<td><strong>Formatos soportados</strong></td>
+<td>TXT, Imágenes, HTML, BIN, y cualquier otro tipo de archivo presente
+en el directorio configurado</td>
+</tr>
+<tr class="odd">
+<td><strong>Códigos HTTP</strong></td>
+<td>200 OK, 404 Not Found</td>
+</tr>
+<tr class="even">
+<td><strong>Timeout</strong></td>
+<td>30 segundos</td>
+</tr>
+<tr class="odd">
+<td><strong>Capacidad máxima</strong></td>
+<td>100 clientes concurrentes</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="estrategia-de-solución"><strong>Estrategia de
+Solución</strong></h2>
+<h3 id="arquitectura-general"><strong>Arquitectura General</strong></h3>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>Cliente (Browser/CLI) → <span class="co">[</span><span class="ot">Servidor</span><span class="co">]</span> → Archivos  </span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>                             ↑  </span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>                    FIFO │ FORK │ THREAD  </span></code></pre></div>
+<p>Lo anterior representa la arquitectura general del sistema. El
+cliente, ya sea un navegador o una interfaz de línea de comandos (CLI),
+envía solicitudes al servidor para obtener archivos. Estos archivos
+pueden visualizarse en el navegador o descargarse localmente. El
+servidor opera bajo diferentes modelos de concurrencia: FIFO, FORK o
+THREAD, tal como se describe.</p>
+<h3 id="implementación-servidores"><strong>Implementación
+Servidores</strong></h3>
+<h3 id="códigos-de-implementación-de-los-servidores"><strong>Códigos de
+Implementación de los Servidores</strong></h3>
+<p>A continuación, se presentan los fragmentos de código utilizados para
+implementar los distintos servidores, cada uno con su respectivo modelo
+de concurrencia.</p>
+<div class="page-break"></div>
+<h4 id="servidor-fifo-secuencial"><strong>1. Servidor FIFO
+(Secuencial)</strong></h4>
+<p>El servidor FIFO procesa las solicitudes de manera secuencial,
+atendiendo una solicitud a la vez. Este modelo es simple pero no
+escalable para múltiples clientes concurrentes.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Bucle principal del servidor</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span><span class="op">(</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Acepta una nueva conexión de cliente</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> client_fd <span class="op">=</span> accept<span class="op">(</span>server_fd<span class="op">,</span> NULL<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Maneja la solicitud del cliente</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    handle_request<span class="op">(</span>client_fd<span class="op">);</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Cierra la conexión con el cliente</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>client_fd<span class="op">);</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<h4 id="servidor-fork-multiproceso"><strong>2. Servidor FORK
+(Multiproceso)</strong></h4>
+<p>El servidor FORK crea un nuevo proceso para cada solicitud recibida.
+Este enfoque permite manejar múltiples clientes simultáneamente, pero
+con un mayor consumo de recursos.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Bucle principal del servidor</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span><span class="op">(</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Acepta una nueva conexión de cliente</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> client_fd <span class="op">=</span> accept<span class="op">(</span>server_fd<span class="op">,</span> NULL<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Crea un nuevo proceso para manejar la solicitud</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    pid_t pid <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pid <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span> <span class="co">// Proceso hijo</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>server_fd<span class="op">);</span> <span class="co">// Cierra el descriptor del servidor en el proceso hijo</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        handle_request<span class="op">(</span>client_fd<span class="op">);</span> <span class="co">// Procesa la solicitud del cliente</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        exit<span class="op">(</span>EXIT_SUCCESS<span class="op">);</span> <span class="co">// Finaliza el proceso hijo tras manejar la solicitud</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Proceso padre</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>client_fd<span class="op">);</span> <span class="co">// Cierra el descriptor del cliente en el proceso padre</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<h4 id="servidor-thread-multihilo"><strong>3. Servidor THREAD
+(Multihilo)</strong></h4>
+<p>El servidor THREAD utiliza hilos para manejar múltiples solicitudes
+de manera concurrente. Este modelo es más eficiente en el uso de
+recursos, pero requiere un manejo cuidadoso de sincronización.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Función manejadora para cada hilo</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co">// Recibe el descriptor del cliente, procesa la solicitud y cierra la conexión</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span><span class="op">*</span> thread_handler<span class="op">(</span><span class="dt">void</span><span class="op">*</span> arg<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> client_fd <span class="op">=</span> <span class="op">*((</span><span class="dt">int</span><span class="op">*)</span>arg<span class="op">);</span> <span class="co">// Descriptor del cliente</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    handle_request<span class="op">(</span>client_fd<span class="op">);</span> <span class="co">// Procesa la solicitud del cliente</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>client_fd<span class="op">);</span> <span class="co">// Cierra la conexión con el cliente</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> NULL<span class="op">;</span> <span class="co">// Finaliza el hilo</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="co">// Bucle principal del servidor</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span><span class="op">(</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> client_fd <span class="op">=</span> accept<span class="op">(</span>server_fd<span class="op">,</span> NULL<span class="op">,</span> NULL<span class="op">);</span> <span class="co">// Acepta una nueva conexión de cliente</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    pthread_t thread<span class="op">;</span> <span class="co">// Declara un nuevo hilo</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    pthread_create<span class="op">(&amp;</span>thread<span class="op">,</span> NULL<span class="op">,</span> thread_handler<span class="op">,</span> <span class="op">&amp;</span>client_fd<span class="op">);</span> <span class="co">// Crea un hilo para manejar la solicitud</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    pthread_detach<span class="op">(</span>thread<span class="op">);</span> <span class="co">// Desvincula el hilo para que se limpie automáticamente al finalizar</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Cada uno de estos modelos tiene ventajas y desventajas que se
+analizaron en las secciones de resultados y evaluación.</p>
+<div class="page-break"></div>
+<h3 id="cliente-multihilo"><strong>Cliente Multihilo</strong></h3>
+<p>El cliente multihilo permite descargar múltiples archivos de manera
+concurrente, aprovechando la capacidad de los hilos para realizar tareas
+en paralelo. A continuación, se presenta un fragmento de código que
+ilustra su implementación:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode c"><code class="sourceCode c"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span><span class="op">*</span> download_file<span class="op">(</span><span class="dt">void</span><span class="op">*</span> filename<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> buffer<span class="op">[</span>BUFFER_SIZE<span class="op">];</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Lógica para manejar la descarga del archivo</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Se asegura la lectura y escritura correcta del contenido</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> NULL<span class="op">;</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">int</span> argc<span class="op">,</span> <span class="dt">char</span><span class="op">*</span> argv<span class="op">[])</span> <span class="op">{</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    pthread_t threads<span class="op">[</span>MAX_THREADS<span class="op">];</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> num_files<span class="op">;</span> i<span class="op">++)</span> <span class="op">{</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Crear un hilo para cada archivo a descargar</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        pthread_create<span class="op">(&amp;</span>threads<span class="op">[</span>i<span class="op">],</span> NULL<span class="op">,</span> download_file<span class="op">,</span> filenames<span class="op">[</span>i<span class="op">]);</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> num_files<span class="op">;</span> i<span class="op">++)</span> <span class="op">{</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Esperar a que cada hilo termine su ejecución</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>        pthread_join<span class="op">(</span>threads<span class="op">[</span>i<span class="op">],</span> NULL<span class="op">);</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<p>Este enfoque mejora significativamente el rendimiento al permitir que
+las descargas se realicen de forma simultánea, reduciendo el tiempo
+total de espera para el usuario.</p>
+<h2 id="análisis-de-resultados"><strong>Análisis de
+Resultados</strong></h2>
+<p>A continuación, se presenta un listado detallado de todas las
+actividades y tareas realizadas a nivel funcional, indicando el
+porcentaje de realización y, en caso de no ser el 100%, una
+justificación correspondiente.</p>
+<h3
+id="listado-de-actividades-y-porcentaje-de-realización"><strong>Listado
+de Actividades y Porcentaje de Realización</strong></h3>
+<table>
+<colgroup>
+<col style="width: 30%" />
+<col style="width: 25%" />
+<col style="width: 44%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><strong>Actividad/Tarea</strong></th>
+<th><strong>Porcentaje de Realización</strong></th>
+<th><strong>Justificación (si no es 100%)</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Implementación del servidor FIFO</td>
+<td>100%</td>
+<td>N/A</td>
+</tr>
+<tr class="even">
+<td>Implementación del servidor FORK</td>
+<td>100%</td>
+<td>N/A</td>
+</tr>
+<tr class="odd">
+<td>Implementación del servidor THREAD</td>
+<td>100%</td>
+<td>N/A</td>
+</tr>
+<tr class="even">
+<td>Implementación del cliente multihilo</td>
+<td>100%</td>
+<td>N/A</td>
+</tr>
+<tr class="odd">
+<td>Pruebas de funcionalidad</td>
+<td>100%</td>
+<td>N/A</td>
+</tr>
+<tr class="even">
+<td>Pruebas de estrés</td>
+<td>100%</td>
+<td>N/A</td>
+</tr>
+<tr class="odd">
+<td>Documentación técnica</td>
+<td>100%</td>
+<td>N/A</td>
+</tr>
+<tr class="even">
+<td>Revisión final</td>
+<td>100%</td>
+<td>N/A</td>
+</tr>
+</tbody>
+</table>
+<div class="page-break"></div>
+<h3 id="resultados-de-pruebas-de-concurrencia"><strong>Resultados de
+Pruebas de Concurrencia</strong></h3>
+<table>
+<colgroup>
+<col style="width: 13%" />
+<col style="width: 28%" />
+<col style="width: 21%" />
+<col style="width: 9%" />
+<col style="width: 26%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><strong>Servidor</strong></th>
+<th><strong>Modelo de Concurrencia</strong></th>
+<th><strong>Tiempo para 2GB</strong></th>
+<th><strong>Logs</strong></th>
+<th><strong>Estabilidad</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>FIFO</strong></td>
+<td>Secuencial</td>
+<td>~38s</td>
+<td>Sí</td>
+<td>No se cierra</td>
+</tr>
+<tr class="even">
+<td><strong>Fork</strong></td>
+<td>Procesos</td>
+<td>~17s</td>
+<td>Sí</td>
+<td>Sin procesos zombies</td>
+</tr>
+<tr class="odd">
+<td><strong>Thread</strong></td>
+<td>Hilos</td>
+<td>~10s</td>
+<td>Sí*</td>
+<td>Manejo eficiente</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Nota:</strong> El servidor basado en hilos (<em>Thread</em>)
+requiere manejo cuidadoso de condiciones de carrera para garantizar
+estabilidad.</p>
+</blockquote>
+<h3 id="estado-de-desarrollo-y-métricas-clave"><strong>Estado de
+Desarrollo y Métricas Clave</strong></h3>
+<table>
+<colgroup>
+<col style="width: 27%" />
+<col style="width: 12%" />
+<col style="width: 20%" />
+<col style="width: 38%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Componente</th>
+<th>Progreso</th>
+<th>Estado</th>
+<th>Métricas Clave</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Servidor FIFO</td>
+<td>100%</td>
+<td>Validado</td>
+<td>45 conexiones/sec</td>
+</tr>
+<tr class="even">
+<td>Servidor FORK</td>
+<td>100%</td>
+<td>Validado</td>
+<td>120 procesos concurrentes</td>
+</tr>
+<tr class="odd">
+<td>Servidor THREAD</td>
+<td>100%</td>
+<td>Validado</td>
+<td>75% uso CPU</td>
+</tr>
+<tr class="even">
+<td>Cliente</td>
+<td>100%</td>
+<td>Validado</td>
+<td>12 descargas paralelas</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rendimiento-comparativo"><strong>Rendimiento
+Comparativo</strong></h3>
+<p>Los resultados de rendimiento se registran en una tabla comparativa
+que incluye métricas como tiempo de respuesta, uso de memoria,
+throughput y escalabilidad. Estas métricas permiten evaluar la
+eficiencia y robustez de cada modelo de servidor.</p>
+<table>
+<colgroup>
+<col style="width: 31%" />
+<col style="width: 23%" />
+<col style="width: 22%" />
+<col style="width: 22%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><strong>Métrica</strong></th>
+<th><strong>FIFO</strong></th>
+<th><strong>FORK</strong></th>
+<th><strong>THREAD</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Tiempo de Respuesta</strong></td>
+<td>108,182.15 ms</td>
+<td>92,459.44 ms</td>
+<td>93,908.60 ms</td>
+</tr>
+<tr class="even">
+<td><strong>Uso de Memoria</strong></td>
+<td>2,692 KB</td>
+<td>1,412 KB</td>
+<td>2,516 KB</td>
+</tr>
+<tr class="odd">
+<td><strong>Throughput</strong></td>
+<td>-18.93 MB/s</td>
+<td>22.15 MB/s</td>
+<td>21.81 MB/s</td>
+</tr>
+<tr class="even">
+<td><strong>Conexiones Exitosas</strong></td>
+<td>100%</td>
+<td>100%</td>
+<td>100%</td>
+</tr>
+<tr class="odd">
+<td><strong>Escalabilidad</strong></td>
+<td>Baja</td>
+<td>Media</td>
+<td>Alta</td>
+</tr>
+<tr class="even">
+<td><strong>Manejo de Errores</strong></td>
+<td>Sí</td>
+<td>Sí</td>
+<td>Sí</td>
+</tr>
+</tbody>
+</table>
+<p>A partir de los datos obtenidos en el cuadro anterior, se pueden
+extraer las siguientes conclusiones:</p>
+<ol type="1">
+<li><p><strong>Eficiencia del Modelo THREAD</strong>:<br />
+El servidor basado en hilos (THREAD) demostró ser el más eficiente en
+términos de tiempo de respuesta y uso de recursos. Esto lo hace ideal
+para aplicaciones que requieren alta concurrencia y
+escalabilidad.</p></li>
+<li><p><strong>Limitaciones del Modelo FIFO</strong>:<br />
+El servidor FIFO, aunque sencillo de implementar, presentó el peor
+rendimiento en todas las métricas. Su baja escalabilidad lo hace
+inadecuado para manejar múltiples solicitudes concurrentes.</p></li>
+<li><p><strong>Balance del Modelo FORK</strong>:<br />
+El servidor FORK ofreció un rendimiento intermedio, con tiempos de
+respuesta más rápidos que FIFO, pero con un mayor consumo de memoria y
+CPU en comparación con THREAD. Es una opción viable para sistemas con
+recursos suficientes.</p></li>
+<div class="page-break"></div>
+<li><p><strong>Conexiones Exitosas y Manejo de Errores</strong>:<br />
+Todos los modelos lograron manejar el 100% de las conexiones
+exitosamente y respondieron adecuadamente a errores, lo que demuestra la
+robustez de las implementaciones.</p></li>
+<li><p><strong>Pruebas Uniformes</strong>:<br />
+Los datos fueron obtenidos utilizando la misma prueba en los diferentes
+servidores, garantizando así una comparación justa y consistente entre
+los modelos.</p></li>
+</ol>
+<p>En pocas palabras, el modelo THREAD es el más adecuado para
+escenarios de alta concurrencia, mientras que FIFO y FORK pueden ser
+útiles en casos específicos dependiendo de los recursos disponibles y
+los requisitos del sistema.</p>
+<h2 id="casos-de-prueba"><strong>Casos de Prueba</strong></h2>
+<p>A continuación, se describen las pruebas realizadas para evaluar la
+funcionalidad completa del programa, incluyendo los resultados esperados
+y los obtenidos.</p>
+<h3 id="prueba-1-solicitud-básica"><strong>Prueba 1: Solicitud
+Básica</strong></h3>
+<h4
+id="descripción-solicitar-varios-archivos-pequeños-desde-el-cliente."><strong>Descripción:</strong>
+Solicitar varios archivos pequeños desde el cliente.</h4>
+<h4 id="comando"><strong>Comando:</strong></h4>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./cliente_http</span> noticia.txt mi_archivo.txt html_ejemplo.html golden.png</span></code></pre></div>
+<h4 id="resultado-esperado"><strong>Resultado Esperado:</strong></h4>
+<ul>
+<li>Los archivos solicitados se descargan correctamente en el directorio
+del cliente.<br />
+</li>
+<li>El servidor responde con código HTTP 200 OK para cada archivo.</li>
+</ul>
+<h4 id="resultado-obtenido"><strong>Resultado Obtenido:</strong></h4>
+<ul>
+<li>Todos los archivos se descargaron correctamente.<br />
+</li>
+<li>Respuesta del servidor: 200 OK para cada archivo.</li>
+</ul>
+<p><img src="image-5.png" alt="alt text" width="600">
+<img src="image-6.png" alt="alt text" width="600"></p>
+<p><img src="image-7.png" alt="alt text" width="400"></p>
+<h3 id="prueba-2-archivo-grande-2.5gb"><strong>Prueba 2: Archivo Grande
+(2.5GB)</strong></h3>
+<h4
+id="descripción-solicitar-un-archivo-grande-para-evaluar-el-manejo-de-transferencias-extensas."><strong>Descripción:</strong>
+Solicitar un archivo grande para evaluar el manejo de transferencias
+extensas.</h4>
+<h4 id="comando-1"><strong>Comando:</strong></h4>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">dd</span> if=/dev/zero of=archivos/prueba_grande.bin bs=1G count=2</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./cliente_http</span> prueba_grande.bin</span></code></pre></div>
+<h4 id="resultado-esperado-1"><strong>Resultado Esperado:</strong></h4>
+<ul>
+<li>El archivo se descarga completamente sin interrupciones.<br />
+</li>
+<li>El servidor mantiene la conexión activa hasta completar la
+transferencia.</li>
+</ul>
+<h4 id="resultado-obtenido-1"><strong>Resultado Obtenido:</strong></h4>
+<ul>
+<li>El archivo se descargó completamente.<br />
+</li>
+<li>El servidor mantuvo la conexión activa durante toda la
+transferencia.</li>
+</ul>
+<p><img src="image-8.png" alt="alt text" width="800">
+<img src="image-9.png" alt="alt text" width="800">
+<img src="image-10.png" alt="alt text" width="800"></p>
+<h3 id="prueba-3-stress-test"><strong>Prueba 3: Stress
+Test</strong></h3>
+<h4
+id="descripción-simular-múltiples-clientes-concurrentes-solicitando-archivos-al-servidor."><strong>Descripción:</strong>
+Simular múltiples clientes concurrentes solicitando archivos al
+servidor.</h4>
+<h4 id="comando-2"><strong>Comando:</strong></h4>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="dt">{</span><span class="dv">1</span><span class="dt">..</span><span class="dv">50</span><span class="dt">}</span><span class="kw">;</span> <span class="cf">do</span> <span class="ex">./cliente_http</span> file<span class="va">$i</span>.txt <span class="kw">&amp;</span> <span class="cf">done</span></span></code></pre></div>
+<div class="page-break"></div>
+<h4 id="resultado-esperado-2"><strong>Resultado Esperado:</strong></h4>
+<ul>
+<li>El servidor maneja todas las solicitudes sin fallar.<br />
+</li>
+<li>Los archivos se descargan correctamente.</li>
+</ul>
+<h4 id="resultado-obtenido-2"><strong>Resultado Obtenido:</strong></h4>
+<ul>
+<li>El servidor manejó todas las solicitudes sin errores.<br />
+</li>
+<li>Todos los archivos se descargaron correctamente.</li>
+</ul>
+<p><img src="image-11.png" alt="alt text" width="800"></p>
+<p><img src="image-12.png" alt="alt text" width="400"></p>
+<h3 id="prueba-4-solicitud-de-archivo-inexistente"><strong>Prueba 4:
+Solicitud de Archivo Inexistente</strong></h3>
+<h4
+id="descripción-solicitar-un-archivo-que-no-existe-en-el-servidor."><strong>Descripción:</strong>
+Solicitar un archivo que no existe en el servidor.</h4>
+<h4 id="comando-3"><strong>Comando:</strong></h4>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">./cliente_http</span> archivo_inexistente.txt</span></code></pre></div>
+<h4 id="resultado-esperado-3"><strong>Resultado Esperado:</strong></h4>
+<ul>
+<li>El servidor responde con código HTTP 404 Not Found.<br />
+</li>
+<li>No se genera ningún archivo en el cliente.</li>
+</ul>
+<h4 id="resultado-obtenido-3"><strong>Resultado Obtenido:</strong></h4>
+<ul>
+<li>Respuesta del servidor: 404 Not Found.<br />
+</li>
+<li>No se generó ningún archivo en el cliente.</li>
+</ul>
+<p><img src="image-1.png" alt="alt text" width="800"></p>
+<p><img src="image.png" alt="alt text" width="600"></p>
+<h2 id="comparativa-técnica"><strong>Comparativa Técnica</strong></h2>
+<p>En la siguiente tabla se presenta una comparación entre los hilos de
+Java y Pthreads, dos enfoques populares para la programación
+concurrente. Esta comparación se centra en aspectos clave como
+usabilidad, portabilidad, rendimiento y manejo de errores.</p>
+<table>
+<colgroup>
+<col style="width: 12%" />
+<col style="width: 44%" />
+<col style="width: 42%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th><strong>Aspecto</strong></th>
+<th><strong>Java Threads</strong></th>
+<th><strong>Pthreads</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Usabilidad</strong></td>
+<td>Ofrece una API de alto nivel, fácil de usar y adecuada para
+desarrolladores Java.</td>
+<td>Requiere conocimientos avanzados de programación en C y manejo de
+bajo nivel.</td>
+</tr>
+<tr class="even">
+<td><strong>Portabilidad</strong></td>
+<td>Multiplataforma, funciona en cualquier sistema con una JVM.</td>
+<td>Dependiente del sistema operativo, diseñado principalmente para
+entornos POSIX.</td>
+</tr>
+<tr class="odd">
+<td><strong>Rendimiento</strong></td>
+<td>Mayor overhead debido a la abstracción de la JVM.</td>
+<td>Más eficiente en términos de uso de recursos, con menor
+overhead.</td>
+</tr>
+<tr class="even">
+<td><strong>Sincronización</strong></td>
+<td>Utiliza monitores y palabras clave como <code>synchronized</code>
+para manejar concurrencia.</td>
+<td>Requiere el uso explícito de mutexes y variables de condición.</td>
+</tr>
+<tr class="odd">
+<td><strong>Memoria por Hilo</strong></td>
+<td>Consume más memoria (~1 MB por hilo) debido a la sobrecarga de la
+JVM.</td>
+<td>Consume menos memoria (~8 KB por hilo), ideal para aplicaciones de
+alto rendimiento.</td>
+</tr>
+<tr class="even">
+<td><strong>Creación de Hilos</strong></td>
+<td>Más lenta debido a la inicialización de la JVM y la gestión de
+recursos.</td>
+<td>Más rápida, ya que interactúa directamente con el sistema
+operativo.</td>
+</tr>
+<tr class="odd">
+<td><strong>Depuración</strong></td>
+<td>Más sencilla gracias a herramientas integradas en entornos como
+Eclipse o IntelliJ.</td>
+<td>Más compleja, requiere herramientas externas como GDB para
+depuración.</td>
+</tr>
+<tr class="even">
+<td><strong>Escalabilidad</strong></td>
+<td>Adecuada para aplicaciones multiplataforma con requisitos moderados
+de concurrencia.</td>
+<td>Ideal para aplicaciones de alto rendimiento en sistemas
+específicos.</td>
+</tr>
+<tr class="odd">
+<td><strong>Manejo de Errores</strong></td>
+<td>Manejo de excepciones integrado en el lenguaje.</td>
+<td>Requiere manejo manual de errores mediante códigos de retorno.</td>
+</tr>
+</tbody>
+</table>
+<p>En resumen, los hilos de Java son más accesibles y portables, ideales
+para aplicaciones multiplataforma. Por otro lado, Pthreads ofrece un
+rendimiento superior y un control más detallado, siendo más adecuado
+para sistemas críticos y de alto rendimiento.</p>
+<h2 id="evaluación"><strong>Evaluación</strong></h2>
+<p>Durante la implementación se aprendió a trabajar con sockets, manejar
+procesos e hilos en C, y simular un entorno servidor-cliente
+funcional.</p>
+<ul>
+<li><p>El servidor FIFO fue el más sencillo de implementar, pero el
+menos eficiente. Entre sus ventajas se tiene un bajo consumo de recursos
+y facilidad de depuración. Sin embargo no es viable para cargas
+altas.</p></li>
+<li><p>El servidor FORK ofreció buena concurrencia, aunque requiere
+manejo cuidadoso de procesos hijos. Entre sus ventajas se encuentran la
+facilidad de implementación y la capacidad de manejar múltiples
+solicitudes simultáneamente. Sin embargo, su alto consumo de memoria y
+CPU lo hacen menos eficiente.</p></li>
+<li><p>El servidor THREAD mostró el mejor rendimiento general, con menor
+sobrecarga que FORK. Entre sus ventajas se tiene que consume menos
+recursos y es más eficiente en el uso de CPU. Sin embargo, su
+implementación es más compleja y requiere un manejo cuidadoso de
+condiciones de carrera.</p></li>
+</ul>
+<p>En conclusión, el servidor THREAD fue el que mejor atendió múltiples
+solicitudes simultáneas con eficiencia y estabilidad.</p>
+<h2 id="manual-de-usuario"><strong>Manual de Usuario</strong></h2>
+<p>Asegúrese de estar en un ambiente Linux. Puede ser WSL en VSCode o
+una máquina virtual.</p>
+<h3 id="compilación"><strong>Compilación</strong></h3>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">make</span> clean <span class="kw">&amp;&amp;</span> <span class="fu">make</span></span></code></pre></div>
+<p>Esto ejecutará el Makefile, compilará el código y lo dejará listo
+para su ejecución.</p>
+<p><img src="image-2.png" alt="alt text" width="800"></p>
+<h3 id="ejecución"><strong>Ejecución</strong></h3>
+<h4 id="servidor"><strong>Servidor</strong></h4>
+<p>En una terminal, ejecute el servidor que desea utilizar. Solo se
+puede usar un servidor a la vez, ya que comparten el mismo puerto:</p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Servidor de elección</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./server_fifo</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="ex">./server_thread</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="ex">./server_fork</span></span></code></pre></div>
+<p><img src="image-3.png" alt="alt text" width="800"></p>
+<h4 id="cliente"><strong>Cliente</strong></h4>
+<p>En otra terminal diferente, ejecute el cliente con los archivos que
+desea procesar:</p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Cliente</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./cliente_http</span> noticia.txt</span></code></pre></div>
+<p><img src="image-4.png" alt="alt text" width="800"></p>
+<h2 id="bitácora-de-trabajo"><strong>Bitácora de Trabajo</strong></h2>
+<p>La siguiente tabla resume las horas invertidas en cada actividad del
+proyecto.</p>
+<table>
+<thead>
+<tr class="header">
+<th><strong>Fecha</strong></th>
+<th><strong>Actividad</strong></th>
+<th style="text-align: center;"><strong>Horas</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>30/03/2025</td>
+<td>Revisión de requisitos</td>
+<td style="text-align: center;">1</td>
+</tr>
+<tr class="even">
+<td>30/03/2025</td>
+<td>Configuración del entorno</td>
+<td style="text-align: center;">2</td>
+</tr>
+<tr class="odd">
+<td>30/03/2025</td>
+<td>Creación del repositorio</td>
+<td style="text-align: center;">1</td>
+</tr>
+<tr class="even">
+<td>30/03/2025</td>
+<td>Estructura del proyecto</td>
+<td style="text-align: center;">2</td>
+</tr>
+<tr class="odd">
+<td>02/04/2025</td>
+<td>Diseño de arquitectura</td>
+<td style="text-align: center;">6</td>
+</tr>
+<tr class="even">
+<td>05/04/2025</td>
+<td>Implementación FIFO</td>
+<td style="text-align: center;">8</td>
+</tr>
+<tr class="odd">
+<td>08/04/2025</td>
+<td>Implementación FORK</td>
+<td style="text-align: center;">8</td>
+</tr>
+<tr class="even">
+<td>10/04/2025</td>
+<td>Implementación THREAD</td>
+<td style="text-align: center;">8</td>
+</tr>
+<tr class="odd">
+<td>11/04/2025</td>
+<td>Implementación Cliente</td>
+<td style="text-align: center;">8</td>
+</tr>
+<tr class="even">
+<td>12/04/2025</td>
+<td>Pruebas de funcionalidad</td>
+<td style="text-align: center;">4</td>
+</tr>
+<tr class="odd">
+<td>12/04/2025</td>
+<td>Documentación</td>
+<td style="text-align: center;">4</td>
+</tr>
+<tr class="even">
+<td>13/04/2025</td>
+<td>Pruebas de estrés</td>
+<td style="text-align: center;">7</td>
+</tr>
+<tr class="odd">
+<td>14/04/2025</td>
+<td>Revisión de documentación</td>
+<td style="text-align: center;">6</td>
+</tr>
+<tr class="even">
+<td>14/04/2025</td>
+<td>Revisión final</td>
+<td style="text-align: center;">2</td>
+</tr>
+<tr class="odd">
+<td>15/04/2025</td>
+<td>Entrega del proyecto</td>
+<td style="text-align: center;">1</td>
+</tr>
+</tbody>
+</table>
+<h2 id="conclusiones"><strong>Conclusiones</strong></h2>
+<p>El proyecto permitió aplicar conceptos clave de sistemas operativos
+como sockets, procesos e hilos. Se concluye lo siguiente:</p>
+<ul>
+<li>El servidor THREAD fue el más eficiente y estable al manejar
+múltiples solicitudes concurrentes.</li>
+<li>El servidor FIFO, aunque simple, es poco escalable.</li>
+<li>El modelo FORK funciona bien, pero con mayor sobrecarga que
+THREAD.</li>
+<li>El cliente multihilo facilitó la descarga paralela de archivos.</li>
+<li>La correcta división del trabajo y las pruebas colaborativas fueron
+clave para el éxito del proyecto.</li>
+</ul>
+<div class="page-break"></div>
+<h2 id="referencias"><strong>Referencias</strong></h2>
+<ol type="1">
+<li>Stevens, W. R. (2003). <em>UNIX Network Programming</em><br />
+</li>
+<li>RFC 1945 - HTTP/1.0</li>
+<li>Comer, D. E. (2000). <em>Internetworking with TCP/IP Volume III:
+Client-Server Programming and Applications</em>. Prentice Hall.<br />
+</li>
+<li>Kerrisk, M. (2010). <em>The Linux Programming Interface: A Linux and
+UNIX System Programming Handbook</em>. No Starch Press.<br />
+</li>
+<li>Postel, J. (1981). <em>RFC 793 - Transmission Control Protocol</em>.
+Retrieved from https://www.rfc-editor.org/rfc/rfc793.html<br />
+</li>
+<li>Postel, J. (1996). <em>RFC 1945 - Hypertext Transfer Protocol –
+HTTP/1.0</em>. Retrieved from
+https://www.rfc-editor.org/rfc/rfc1945.html<br />
+</li>
+<li>Stevens, W. R., Fenner, B., &amp; Rudoff, A. M. (2004). <em>UNIX
+Network Programming, Volume 1: The Sockets Networking API</em>.
+Addison-Wesley.<br />
+</li>
+<li>GNU Project. (n.d.). <em>GNU C Library: Sockets</em>. Retrieved from
+https://www.gnu.org/software/libc/manual/html_node/Sockets.html<br />
+</li>
+<li>Beej’s Guide to Network Programming. (n.d.). Retrieved from
+https://beej.us/guide/bgnet/<br />
+</li>
+<li>Goetz, B. (2006). <em>Java Concurrency in Practice</em>.
+Addison-Wesley.</li>
+<li>Butenhof, D. R. (1997). <em>Programming with POSIX Threads</em>.
+Addison-Wesley.</li>
+<li>Oracle. (n.d.). <em>Java Threads Documentation</em>. Retrieved from
+https://docs.oracle.com/javase/tutorial/essential/concurrency/</li>
+<li>The Open Group. (n.d.). <em>POSIX Threads Documentation</em>.
+Retrieved from
+https://pubs.opengroup.org/onlinepubs/9699919799/functions/pthread_create.html</li>
+</ol>
+</body>
+</html>
