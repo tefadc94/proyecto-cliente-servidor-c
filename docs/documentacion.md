@@ -3,7 +3,7 @@
 # **Tecnológico de Costa Rica**  
 ## Escuela de Ingeniería en Computación  
 ### IC-6600 Sistemas Operativos  
-#### Proyecto I: Implementación de Servidores Concurrentes
+#### Proyecto I: Implementación de Servidores Concurrentes  
 
 **Integrantes:**  
 Estefanía Delgado Castillo  
@@ -24,7 +24,7 @@ Diana Sanabria Calvo
 6. [Evaluación](#evaluación)  
 7. [Manual de Usuario](#manual-de-usuario)  
 8. [Bitácora de Trabajo](#bitácora-de-trabajo)  
-9. [Conclusiones](#conclusiones)
+9. [Conclusiones](#conclusiones)  
 10. [Referencias](#referencias)  
 
 ## **Introducción**  
@@ -168,8 +168,8 @@ A continuación, se presenta un listado detallado de todas las actividades y tar
 | Implementación del cliente multihilo | 100%                          | N/A                                                   |
 | Pruebas de funcionalidad             | 100%                          | N/A                                                   |
 | Pruebas de estrés                    | 100%                          | N/A                                                   |
-| Documentación técnica                | 95%                           | Pendiente agregar resultados finales de pruebas.      |
-| Revisión final                       | 100%                          | N/A                                                   |
+| Documentación técnica                | 100%                          | N/A                                                   |
+| Revisión final                       | 100%                          | NA                                                    |
 
 ### **Resultados de Pruebas de Concurrencia**  
 
@@ -340,7 +340,7 @@ make clean && make
 ```
 Esto ejecutará el Makefile, compilará el código y lo dejará listo para su ejecución.
 
-![alt text](image-2.png)
+<img src="image-2.png" alt="alt text" width="600">
 
 ### **Ejecución**  
 
@@ -355,7 +355,7 @@ En una terminal, ejecute el servidor que desea utilizar. Solo se puede usar un s
 ./server_fork
 ```
 
-![alt text](image-3.png)
+<img src="image-3.png" alt="alt text" width="600">
 
 #### **Cliente**  
 En otra terminal diferente, ejecute el cliente con los archivos que desea procesar:  
@@ -363,7 +363,7 @@ En otra terminal diferente, ejecute el cliente con los archivos que desea proces
 # Cliente
 ./cliente_http noticia.txt
 ```
-![alt text](image-4.png)
+<img src="image-4.png" alt="alt text" width="600">
 
 ## **Bitácora de Trabajo**  
 
